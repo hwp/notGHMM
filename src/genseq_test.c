@@ -11,6 +11,9 @@
 int main(int argc, char** argv) {
   hmmgmm_t* model = hmmgmm_alloc(2, 1, 2);
 
+  model->pi[0] = .4;
+  model->pi[1] = .5;
+
   HMMGMM_A(model, 0, 0) = .9;
   HMMGMM_A(model, 0, 1) = .1;
   HMMGMM_A(model, 1, 0) = .3;
