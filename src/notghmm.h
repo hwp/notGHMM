@@ -127,17 +127,15 @@ seq_t* seq_gen(hmmgmm_t* model, size_t size);
  *     alpha_t(i) = p(o_1, ..., o_t, q_t = i);
  * recursively using:
  *     alpha_1(i) = pi_i * b_i(o_1)
- *     alpha_{t+1}(j) = [\sum_{i=1}^N alpha_t(i)*a_ij]*b_j(o_{t+1})
+ *     alpha_{t+1}(j) = [sum_{i=1}^N alpha_t(i)*a_ij]*b_j(o_{t+1})
  *
  * @param model the HMM model.
  * @param seq the observed sequence.
- * @param[out] the result forward variable, which is
- *   an array of size model->n * seq->size. The space
- *   should be allocated before calling. Elements are
- *   saved in row (aka i) major order. e.g.
- *       alpha[t * model->n + i] = alpha_t(i)
+ * @param[out] alpha the result forward variable, which is
+ *   a matrix of size seq->size * model->n. The matrix should
+ *   be allocated before calling.
  */
-void forward_proc(hmmgmm_t* model, seq_t* seq, double* alpha);
+void forward_proc(hmmgmm_t* model, seq_t* seq, gsl_matrix* alpha);
 
 /**
  * Re-estimate the model parameters using Baum-Welch algorithm.

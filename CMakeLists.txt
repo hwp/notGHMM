@@ -10,5 +10,8 @@ project(notGHMM)
 find_package(GSL REQUIRED)
 include_directories(${GSL_INCLUDE_DIRS})
 
+set(CMAKE_C_FLAGS "-Wall")
+
 add_subdirectory(src)
+add_subdirectory(doc)
 

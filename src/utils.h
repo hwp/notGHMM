@@ -137,7 +137,7 @@ void gaussian_gen(gsl_rng* rng, gaussian_t* dist,
 /**
  * Probability density function of Gaussian mixture model.
  *
- * @param the Gaussian mixture model.
+ * @param gmm the Gaussian mixture model.
  * @param x variable.
  *
  * @return pdf
