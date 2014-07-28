@@ -6,6 +6,8 @@
 
 #include "utils.h"
 
+#include <math.h>
+
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
 #include <gsl/gsl_vector.h>
@@ -14,13 +16,13 @@
 #include <gsl/gsl_linalg.h>
 
 gaussian_t* gaussian_alloc(size_t dim) {
-  gaussian_t* r = malloc(sizeof(gaussian_t)); 
+  gaussian_t* r = malloc(sizeof(gaussian_t));
   if (r) {
     r->dim = dim;
 
     r->mean = gsl_vector_alloc(dim);
     r->cov = gsl_matrix_alloc(dim, dim);
-    
+
     if (!(r->mean && r->cov)) {
       free(r);
       r = NULL;
@@ -44,7 +46,7 @@ void gaussian_free(gaussian_t* dist) {
 gmm_t* gmm_alloc(size_t dim, size_t k) {
   size_t i;
   int suc = 0;
-  
+
   gmm_t* r = malloc(sizeof(gmm_t));
   if (r) {
     r->dim = dim;
@@ -98,7 +100,7 @@ void gmm_free(gmm_t* gmm) {
   }
 }
 
-size_t discrete_gen(gsl_rng* rng, gsl_vector* dist) {
+size_t discrete_gen(const gsl_rng* rng, const gsl_vector* dist) {
   size_t i;
   double s = 0.0;
   double v = gsl_rng_uniform(rng);
@@ -112,7 +114,36 @@ size_t discrete_gen(gsl_rng* rng, gsl_vector* dist) {
   return i;
 }
 
-void gaussian_gen(gsl_rng* rng, gaussian_t* dist,
+double gaussian_pdf(const gaussian_t* dist,
+    const gsl_vector* x) {
+  double r = 0.0;
+  int signum;
+
+  gsl_vector* w1 = gsl_vector_alloc(dist->dim);
+  gsl_vector* w2 = gsl_vector_alloc(dist->dim);
+  gsl_vector_memcpy(w1, x);
+  gsl_vector_sub(w1, dist->mean);
+
+  gsl_matrix* v = gsl_matrix_alloc(dist->dim, dist->dim);
+  gsl_matrix_memcpy(v, dist->cov);
+  gsl_permutation* p = gsl_permutation_alloc(dist->dim);
+
+  gsl_linalg_LU_decomp(v, p, &signum);
+  gsl_linalg_LU_solve(v, p, w1, w2);
+  gsl_blas_ddot(w1, w2, &r);
+  double det = gsl_linalg_LU_det(v, signum);
+
+  r = exp(-.5 * r) / sqrt(pow(2 * M_PI, dist->dim) * det);
+
+  gsl_vector_free(w1);
+  gsl_vector_free(w2);
+  gsl_matrix_free(v);
+  gsl_permutation_free(p);
+
+  return r;
+}
+
+void gaussian_gen(const gsl_rng* rng, const gaussian_t* dist,
     gsl_vector* result) {
   size_t i;
   for (i = 0; i < result->size; i++) {
@@ -130,7 +161,22 @@ void gaussian_gen(gsl_rng* rng, gaussian_t* dist,
   gsl_matrix_free(v);
 }
 
-void gmm_gen(gsl_rng* rng, gmm_t* gmm, gsl_vector* result) {
+double gmm_pdf(const gmm_t* gmm, const gsl_vector* x) {
+  gsl_vector* p = gsl_vector_alloc(gmm->k);
+  size_t i;
+  for (i = 0; i < p->size; i++) {
+    gsl_vector_set(p, i, gaussian_pdf(gmm->comp[i], x));
+  }
+
+  double result;
+  gsl_blas_ddot(p, gmm->weight, &result);
+
+  gsl_vector_free(p);
+  return result;
+}
+
+void gmm_gen(const gsl_rng* rng, const gmm_t* gmm,
+    gsl_vector* result) {
   size_t i = discrete_gen(rng, gmm->weight);
   gaussian_gen(rng, gmm->comp[i], result);
 }

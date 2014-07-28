@@ -17,7 +17,7 @@
  */
 typedef struct {
   /**
-   * Length of the sequence. 
+   * Length of the sequence.
    */
   size_t size;
 
@@ -78,7 +78,7 @@ typedef struct {
  * @param size length of the sequence.
  * @param dim number of dimensions.
  *
- * @return pointer to the allocated space. 
+ * @return pointer to the allocated space.
  *         NULL, if error occurs.
  */
 seq_t* seq_alloc(size_t size, size_t dim);
@@ -119,7 +119,7 @@ void hmmgmm_free(hmmgmm_t* model);
  *
  * @warning the returned sequence should be freed after use.
  */
-seq_t* seq_gen(hmmgmm_t* model, size_t size);
+seq_t* seq_gen(const hmmgmm_t* model, size_t size);
 
 /**
  * Forward procedure.
@@ -135,16 +135,16 @@ seq_t* seq_gen(hmmgmm_t* model, size_t size);
  *   a matrix of size seq->size * model->n. The matrix should
  *   be allocated before calling.
  */
-void forward_proc(hmmgmm_t* model, seq_t* seq, gsl_matrix* alpha);
+void forward_proc(const hmmgmm_t* model, const seq_t* seq, gsl_matrix* alpha);
 
 /**
  * Re-estimate the model parameters using Baum-Welch algorithm.
- * 
+ *
  * @param[in,out] model the HMM model to be re-estimated.
  * @param data a set of observed sequences.
  * @param nos number of sequences.
  */
-void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos);
+void baum_welch(hmmgmm_t* model, const seq_t** data, size_t nos);
 
 #endif  // NOTGHMM_H_
 

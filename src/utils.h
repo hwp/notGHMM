@@ -69,7 +69,7 @@ typedef struct {
 gaussian_t* gaussian_alloc(size_t dim);
 
 /**
- * Free memory. 
+ * Free memory.
  *
  * @param dist a pointer which is returned by previous call
  *    of gaussian_alloc. If dist is NULL, no operation is
@@ -91,7 +91,7 @@ void gaussian_free(gaussian_t* dist);
 gmm_t* gmm_alloc(size_t dim, size_t k);
 
 /**
- * Free memory. 
+ * Free memory.
  *
  * @param gmm a pointer which is returned by previous call
  *    of gmm_alloc. If gmm is NULL, no operation is
@@ -109,7 +109,7 @@ void gmm_free(gmm_t* gmm);
  *   ignored. Instead, it is considered as 1 - sum of
  *   previous elements.
  */
-size_t discrete_gen(gsl_rng *rng, gsl_vector* dist);
+size_t discrete_gen(const gsl_rng *rng, const gsl_vector* dist);
 
 /**
  * Probability density function of multivariate Gaussian
@@ -120,7 +120,8 @@ size_t discrete_gen(gsl_rng *rng, gsl_vector* dist);
  *
  * @return pdf
  */
-double gaussian_pdf(gaussian_t* dist, gsl_vector* x);
+double gaussian_pdf(const gaussian_t* dist,
+    const gsl_vector* x);
 
 /**
  * Generate a random sample consistent to a Gaussian
@@ -131,7 +132,7 @@ double gaussian_pdf(gaussian_t* dist, gsl_vector* x);
  * @param[out] result the generated sample is saved in
  *   result, which is allocated before calling.
  */
-void gaussian_gen(gsl_rng* rng, gaussian_t* dist,
+void gaussian_gen(const gsl_rng* rng, const gaussian_t* dist,
     gsl_vector* result);
 
 /**
@@ -142,7 +143,7 @@ void gaussian_gen(gsl_rng* rng, gaussian_t* dist,
  *
  * @return pdf
  */
-double gmm_pdf(gmm_t* gmm, gsl_vector* x);
+double gmm_pdf(const gmm_t* gmm, const gsl_vector* x);
 
 /**
  * Generate a random sample consistent to a Gaussian
@@ -153,7 +154,8 @@ double gmm_pdf(gmm_t* gmm, gsl_vector* x);
  * @param[out] result the generated sample is saved in
  *   result, which is allocated before calling.
  */
-void gmm_gen(gsl_rng* rng, gmm_t* gmm, gsl_vector* result);
+void gmm_gen(const gsl_rng* rng, const gmm_t* gmm,
+    gsl_vector* result);
 
 #endif  // UTILS_H_
 

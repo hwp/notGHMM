@@ -12,6 +12,7 @@
 #include <assert.h>
 
 #include <gsl/gsl_rng.h>
+#include <gsl/gsl_blas.h>
 
 seq_t* seq_alloc(size_t size, size_t dim) {
   size_t i;
@@ -123,7 +124,7 @@ void hmmgmm_free(hmmgmm_t* model) {
   }
 }
 
-seq_t* seq_gen(hmmgmm_t* model, size_t size) {
+seq_t* seq_gen(const hmmgmm_t* model, size_t size) {
   seq_t* seq = seq_alloc(size, model->dim);
   assert(seq);
 
@@ -139,18 +140,33 @@ seq_t* seq_gen(hmmgmm_t* model, size_t size) {
       gsl_vector_view view = gsl_matrix_row(model->a, q);
       q = discrete_gen(rng, &view.vector);
     }
-    
+
     gmm_gen(rng, model->states[q], seq->data[t]);
   }
   return seq;
 }
 
-/*
-   void forward_proc(hmmgmm_t* model, seq_t* seq, double* alpha) {
-   size_t i, j, t;
+void forward_proc(const hmmgmm_t* model, const seq_t* seq, gsl_matrix* alpha) {
+  size_t i, t;
 
-   for (i = 0; i < model->n; i++) {
-   alpha[i] = model->pi[i] * pdf_gmm( // TODO
-   }
-   }
- */
+  for (i = 0; i < model->n; i++) {
+    gsl_matrix_set(alpha, 0, i, gsl_vector_get(model->pi, i)
+        * gmm_pdf(model->states[i], seq->data[0]));
+  }
+
+  gsl_vector* b = gsl_vector_alloc(model->n);
+  for (t = 1; t < seq->size; t++) {
+    for (i = 0; i < b->size; i++) {
+      gsl_vector_set(b, i,
+          gmm_pdf(model->states[i], seq->data[t]));
+    }
+
+    gsl_vector_view p = gsl_matrix_row(alpha, t - 1);
+    gsl_vector_view n = gsl_matrix_row(alpha, t);
+    gsl_blas_dgemv(CblasTrans, 1.0, model->a, &p.vector,
+        0.0, &n.vector);
+    gsl_vector_mul(&n.vector, b);
+  }
+  gsl_vector_free(b);
+}
+
