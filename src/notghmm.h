@@ -19,12 +19,12 @@ typedef struct {
   /**
    * Length of the sequence. 
    */
-  int size;
+  size_t size;
 
   /**
    * Number of dimension of observed data.
    */
-  int dim;
+  size_t dim;
 
   /**
    * The observed data.
@@ -41,17 +41,17 @@ typedef struct {
   /**
    * Number of hidden states.
    */
-  int n;
+  size_t n;
 
   /**
    * Number of components of each mixture.
    */
-  int k;
+  size_t k;
 
   /**
    * Number of dimension of observed data.
    */
-  int dim;
+  size_t dim;
 
   /**
    * Probability of initial state. Its size is n.
@@ -81,7 +81,7 @@ typedef struct {
  * @return pointer to the allocated space. 
  *         NULL, if error occurs.
  */
-seq_t* seq_alloc(int size, int dim);
+seq_t* seq_alloc(size_t size, size_t dim);
 
 /**
  * Free memory for the sequence.
@@ -100,7 +100,7 @@ void seq_free(seq_t* seq);
  * @return pointer to the allocated space.
  *         NULL, if error occurs.
  */
-hmmgmm_t* hmmgmm_alloc(int n, int k, int dim);
+hmmgmm_t* hmmgmm_alloc(size_t n, size_t k, size_t dim);
 
 /**
  * Free memory for the model.
@@ -119,7 +119,7 @@ void hmmgmm_free(hmmgmm_t* model);
  *
  * @warning the returned sequence should be freed after use.
  */
-seq_t* seq_gen(hmmgmm_t* model, int size);
+seq_t* seq_gen(hmmgmm_t* model, size_t size);
 
 /**
  * Forward procedure.
@@ -146,7 +146,7 @@ void forward_proc(hmmgmm_t* model, seq_t* seq, double* alpha);
  * @param data a set of observed sequences.
  * @param nos number of sequences.
  */
-void baum_welch(hmmgmm_t* model, seq_t** data, int nos);
+void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos);
 
 #endif  // NOTGHMM_H_
 

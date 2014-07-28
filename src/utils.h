@@ -18,7 +18,7 @@ typedef struct {
   /**
    * Number of dimension.
    */
-  int dim;
+  size_t dim;
 
   /**
    * Mean of the distribution.
@@ -38,12 +38,12 @@ typedef struct {
   /**
    * Number of dimension.
    */
-  int dim;
+  size_t dim;
 
   /**
    * Number of mixture components.
    */
-  int k;
+  size_t k;
 
   /**
    * Mixture weight.
@@ -66,7 +66,7 @@ typedef struct {
  * @return pointer to the allocated space.
  *         NULL, if error occurs.
  */
-gaussian_t* gaussian_alloc(int dim);
+gaussian_t* gaussian_alloc(size_t dim);
 
 /**
  * Free memory. 
@@ -88,7 +88,7 @@ void gaussian_free(gaussian_t* dist);
  * @return pointer to the allocated space.
  *         NULL, if error occurs.
  */
-gmm_t* gmm_alloc(int dim, int k);
+gmm_t* gmm_alloc(size_t dim, size_t k);
 
 /**
  * Free memory. 
@@ -109,7 +109,7 @@ void gmm_free(gmm_t* gmm);
  *   ignored. Instead, it is considered as 1 - sum of
  *   previous elements.
  */
-int discrete_gen(gsl_rng *rng, gsl_vector* dist);
+size_t discrete_gen(gsl_rng *rng, gsl_vector* dist);
 
 /**
  * Probability density function of multivariate Gaussian

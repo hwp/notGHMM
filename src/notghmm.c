@@ -13,8 +13,8 @@
 
 #include <gsl/gsl_rng.h>
 
-seq_t* seq_alloc(int size, int dim) {
-  int i;
+seq_t* seq_alloc(size_t size, size_t dim) {
+  size_t i;
   int suc = 0;
   seq_t* r = malloc(sizeof(seq_t));
   if (r) {
@@ -46,7 +46,7 @@ seq_t* seq_alloc(int size, int dim) {
 }
 
 void seq_free(seq_t* seq) {
-  int i;
+  size_t i;
   if (seq) {
     if (seq->data) {
       for (i = 0; i < seq->size; i++) {
@@ -58,8 +58,8 @@ void seq_free(seq_t* seq) {
   }
 }
 
-hmmgmm_t* hmmgmm_alloc(int n, int k, int dim) {
-  int i;
+hmmgmm_t* hmmgmm_alloc(size_t n, size_t k, size_t dim) {
+  size_t i;
   int suc = 0;
 
   hmmgmm_t* r = malloc(sizeof(hmmgmm_t));
@@ -102,7 +102,7 @@ hmmgmm_t* hmmgmm_alloc(int n, int k, int dim) {
 }
 
 void hmmgmm_free(hmmgmm_t* model) {
-  int i;
+  size_t i;
   if (model) {
     if (model->pi) {
       gsl_vector_free(model->pi);
@@ -123,14 +123,14 @@ void hmmgmm_free(hmmgmm_t* model) {
   }
 }
 
-seq_t* seq_gen(hmmgmm_t* model, int size) {
+seq_t* seq_gen(hmmgmm_t* model, size_t size) {
   seq_t* seq = seq_alloc(size, model->dim);
   assert(seq);
 
   gsl_rng* rng = gsl_rng_alloc(gsl_rng_default);
   gsl_rng_set(rng, time(NULL));
 
-  int q, t;
+  size_t q, t;
   for (t = 0; t < size; t++) {
     if (t == 0) {
       q = discrete_gen(rng, model->pi);
@@ -147,7 +147,7 @@ seq_t* seq_gen(hmmgmm_t* model, int size) {
 
 /*
    void forward_proc(hmmgmm_t* model, seq_t* seq, double* alpha) {
-   int i, j, t;
+   size_t i, j, t;
 
    for (i = 0; i < model->n; i++) {
    alpha[i] = model->pi[i] * pdf_gmm( // TODO

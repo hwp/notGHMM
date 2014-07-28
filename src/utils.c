@@ -13,7 +13,7 @@
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_linalg.h>
 
-gaussian_t* gaussian_alloc(int dim) {
+gaussian_t* gaussian_alloc(size_t dim) {
   gaussian_t* r = malloc(sizeof(gaussian_t)); 
   if (r) {
     r->dim = dim;
@@ -41,8 +41,8 @@ void gaussian_free(gaussian_t* dist) {
   }
 }
 
-gmm_t* gmm_alloc(int dim, int k) {
-  int i;
+gmm_t* gmm_alloc(size_t dim, size_t k) {
+  size_t i;
   int suc = 0;
   
   gmm_t* r = malloc(sizeof(gmm_t));
@@ -82,7 +82,7 @@ gmm_t* gmm_alloc(int dim, int k) {
 }
 
 void gmm_free(gmm_t* gmm) {
-  int i;
+  size_t i;
   if (gmm) {
     if (gmm->weight) {
       gsl_vector_free(gmm->weight);
@@ -98,8 +98,8 @@ void gmm_free(gmm_t* gmm) {
   }
 }
 
-int discrete_gen(gsl_rng* rng, gsl_vector* dist) {
-  int i;
+size_t discrete_gen(gsl_rng* rng, gsl_vector* dist) {
+  size_t i;
   double s = 0.0;
   double v = gsl_rng_uniform(rng);
 
@@ -114,7 +114,7 @@ int discrete_gen(gsl_rng* rng, gsl_vector* dist) {
 
 void gaussian_gen(gsl_rng* rng, gaussian_t* dist,
     gsl_vector* result) {
-  int i;
+  size_t i;
   for (i = 0; i < result->size; i++) {
     gsl_vector_set(result, i, gsl_ran_ugaussian(rng));
   }
@@ -131,7 +131,7 @@ void gaussian_gen(gsl_rng* rng, gaussian_t* dist,
 }
 
 void gmm_gen(gsl_rng* rng, gmm_t* gmm, gsl_vector* result) {
-  int i = discrete_gen(rng, gmm->weight);
+  size_t i = discrete_gen(rng, gmm->weight);
   gaussian_gen(rng, gmm->comp[i], result);
 }
 
