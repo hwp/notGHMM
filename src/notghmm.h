@@ -7,6 +7,11 @@
 #ifndef NOTGHMM_H_
 #define NOTGHMM_H_
 
+#include "utils.h"
+
+#include <gsl/gsl_vector.h>
+#include <gsl/gsl_matrix.h>
+
 /**
  * Sequence of observed data.
  */
@@ -23,12 +28,11 @@ typedef struct {
 
   /**
    * The observed data.
-   * data[i*dim+j] is the j-th dimension of the observed data at time i.
+   * data[i] is the observed data (a vector of size dim)
+   * at time i.
    */
-  double* data;
+  gsl_vector** data;
 } seq_t;
-
-#define SEQ_DATA_AT(s, t) ((s)->data + (t) * (s)->dim)
 
 /**
  * A HMM-GMM model.
@@ -42,7 +46,7 @@ typedef struct {
   /**
    * Number of components of each mixture.
    */
-  int m;
+  int k;
 
   /**
    * Number of dimension of observed data.
@@ -52,45 +56,24 @@ typedef struct {
   /**
    * Probability of initial state. Its size is n.
    */
-  double* pi;
+  gsl_vector* pi;
 
   /**
-   * Transition probability. Its size is n^2.
-   * a[i * n + j] = P(q_{t+1}=j|q_t=i)
+   * Transition probability. Its size is n * n.
+   * a[i,j] = P(q_{t+1}=j|q_t=i)
    */
-  double* a;
+  gsl_matrix* a;
 
   /**
-   * Mixture weight. Its size is n * m;
-   * c[i*m+j] is the mixture weight of the j-th component of state i.
+   * GMMs of each states.
    */
-  double* c;
-
-  /**
-   * Mean of the components. Its size is n*m*dim.
-   * mu[(i*m+j)*dim+k] is the k-th dimension 
-   *   of the j-th component of state i.
-   */
-  double* mu;
-
-  /**
-   * Covariance of the components. Its size is n*m*dim^2.
-   * sigma[(i*m+j)*dim^2+k*dim+l] is the k-th row, l-th column 
-   *   of the covariance matrix of the j-th component of state i.
-   */
-  double* sigma;
+  gmm_t** states;
 } hmmgmm_t;
-
-#define HMMGMM_A(mo, i, j) (mo)->a[(i) * (mo)->n + (j)]
-#define HMMGMM_A_ROW(mo, i) ((mo)->a + (i) * (mo)->n)
-#define HMMGMM_C_ROW(mo, i) ((mo)->c + (i) * (mo)->m)
-#define HMMGMM_MU(mo, i, j) ((mo)->mu + ((i) * (mo)->m + (j)) * (mo)->dim)
-#define HMMGMM_SIGMA(mo, i, j) ((mo)->sigma + ((i) * (mo)->m + (j)) * (mo)->dim * (mo)->dim)
 
 /**
  * Allocate memory for a sequence.
- * @p size and @p dim are set according to the arguments.
- * @p data is allocated but not initialized.
+ * size and dim are set according to the arguments.
+ * data is allocated but not initialized.
  *
  * @param size length of the sequence.
  * @param dim number of dimensions.
@@ -107,17 +90,17 @@ void seq_free(seq_t* seq);
 
 /**
  * Allocate memory for a HMM-GMM model.
- * @p n, @p m and @p dim are set according to the arguments.
- * @p pi, @p a, @p c, @p mu and @p sigma are allocated but not initialized.
+ * n, k and dim are set according to the arguments.
+ * pi, a and dist are allocated but not initialized.
  *
  * @param n number of hidden states.
- * @param m number of components.
+ * @param k number of components.
  * @param dim number of dimension.
  *
  * @return pointer to the allocated space.
  *         NULL, if error occurs.
  */
-hmmgmm_t* hmmgmm_alloc(int n, int m, int dim);
+hmmgmm_t* hmmgmm_alloc(int n, int k, int dim);
 
 /**
  * Free memory for the model.
@@ -136,7 +119,25 @@ void hmmgmm_free(hmmgmm_t* model);
  *
  * @warning the returned sequence should be freed after use.
  */
-seq_t* gen_sequence(hmmgmm_t* model, int size);
+seq_t* seq_gen(hmmgmm_t* model, int size);
+
+/**
+ * Forward procedure.
+ * Calculate all forward variable defined as:
+ *     alpha_t(i) = p(o_1, ..., o_t, q_t = i);
+ * recursively using:
+ *     alpha_1(i) = pi_i * b_i(o_1)
+ *     alpha_{t+1}(j) = [\sum_{i=1}^N alpha_t(i)*a_ij]*b_j(o_{t+1})
+ *
+ * @param model the HMM model.
+ * @param seq the observed sequence.
+ * @param[out] the result forward variable, which is
+ *   an array of size model->n * seq->size. The space
+ *   should be allocated before calling. Elements are
+ *   saved in row (aka i) major order. e.g.
+ *       alpha[t * model->n + i] = alpha_t(i)
+ */
+void forward_proc(hmmgmm_t* model, seq_t* seq, double* alpha);
 
 /**
  * Re-estimate the model parameters using Baum-Welch algorithm.

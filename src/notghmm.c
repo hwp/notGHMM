@@ -8,93 +8,149 @@
 #include "utils.h"
 
 #include <stdlib.h>
+#include <time.h>
 #include <assert.h>
 
 #include <gsl/gsl_rng.h>
 
 seq_t* seq_alloc(int size, int dim) {
+  int i;
+  int suc = 0;
   seq_t* r = malloc(sizeof(seq_t));
   if (r) {
     r->size = size;
     r->dim = dim;
-    
-    r->data = malloc(sizeof(double) * size * dim);
-    if (!r->data) {
-      free(r);
-      r == NULL;
+
+    r->data = calloc(size, sizeof(gsl_vector*));
+    if (r->data) {
+      for (i = 0; i < size; i++) {
+        r->data[i] = gsl_vector_alloc(dim);
+        if (!r->data[i]) {
+          break;
+        }
+      }
+
+      if (i == size) {
+        suc = 1;
+      }
     }
   }
-  return r;
+
+  if (suc) {
+    return r;
+  }
+  else {
+    free(r);
+    return NULL;
+  }
 }
 
 void seq_free(seq_t* seq) {
-  free(seq->data);
-  free(seq);
+  int i;
+  if (seq) {
+    if (seq->data) {
+      for (i = 0; i < seq->size; i++) {
+        gsl_vector_free(seq->data[i]);
+      }
+      free(seq->data);
+    }
+    free(seq);
+  }
 }
 
-hmmgmm_t* hmmgmm_alloc(int n, int m, int dim) {
+hmmgmm_t* hmmgmm_alloc(int n, int k, int dim) {
+  int i;
+  int suc = 0;
+
   hmmgmm_t* r = malloc(sizeof(hmmgmm_t));
   if (r) {
     r->n = n;
-    r->m = m;
+    r->k = k;
     r->dim = dim;
 
-    r->pi = malloc(sizeof(double) * n);
-    r->a = malloc(sizeof(double) * n * n);
-    r->c = malloc(sizeof(double) * n * m);
-    r->mu = malloc(sizeof(double) * n * m * dim);
-    r->sigma = malloc(sizeof(double) * n * m * dim * dim);
-    
-    if (!(r->a && r->c && r->mu && r->sigma)) {
-      free(r->pi);
-      free(r->a);
-      free(r->c);
-      free(r->mu);
-      free(r->sigma);
-      free(r);
-      r = NULL;
+    r->states = calloc(n, sizeof(gmm_t*));
+    if (r->states) {
+      for (i = 0; i < n; i++) {
+        r->states[i] = gmm_alloc(dim, k);
+        if (!r->states[i]) {
+          break;
+        }
+      }
+
+      if (i == n) {
+        suc = 1;
+      }
+    }
+
+    if (suc) {
+      r->pi = gsl_vector_alloc(n);
+      r->a = gsl_matrix_alloc(n, n);
+
+      if (!(r->pi && r->a)) {
+        suc = 0;
+      }
     }
   }
-  return r;
+
+  if (suc) {
+    return r;
+  }
+  else {
+    free(r);
+    return NULL;
+  }
 }
 
 void hmmgmm_free(hmmgmm_t* model) {
-  free(model->pi);
-  free(model->a);
-  free(model->c);
-  free(model->mu);
-  free(model->sigma);
-  free(model);
+  int i;
+  if (model) {
+    if (model->pi) {
+      gsl_vector_free(model->pi);
+    }
+
+    if (model->a) {
+      gsl_matrix_free(model->a);
+    }
+
+    if (model->states) {
+      for (i = 0; i < model->n; i++) {
+        gmm_free(model->states[i]);
+      }
+      free(model->states);
+    }
+
+    free(model);
+  }
 }
 
-
-
-seq_t* gen_sequence(hmmgmm_t* model, int size) {
+seq_t* seq_gen(hmmgmm_t* model, int size) {
   seq_t* seq = seq_alloc(size, model->dim);
   assert(seq);
 
-  const gsl_rng_type* rngt = gsl_rng_default;
-  gsl_rng* rng = gsl_rng_alloc(rngt);
+  gsl_rng* rng = gsl_rng_alloc(gsl_rng_default);
+  gsl_rng_set(rng, time(NULL));
 
-  int q, k, t;
-  double r;
-  double* mu;
-  double* sigma;
+  int q, t;
   for (t = 0; t < size; t++) {
     if (t == 0) {
-      q = gen_discrete(rng, model->pi, model->n);
+      q = discrete_gen(rng, model->pi);
     }
     else {
-      q = gen_discrete(rng, HMMGMM_A_ROW(model, q), model->n);
+      gsl_vector_view view = gsl_matrix_row(model->a, q);
+      q = discrete_gen(rng, &view.vector);
     }
-
-    k = gen_discrete(rng, HMMGMM_C_ROW(model, q), model->m);
     
-    mu = HMMGMM_MU(model, q, k);
-    sigma = HMMGMM_SIGMA(model, q, k);
-
-    gen_gaussian(rng, model->dim, mu, sigma, SEQ_DATA_AT(seq, t));
+    gmm_gen(rng, model->states[q], seq->data[t]);
   }
   return seq;
 }
 
+/*
+   void forward_proc(hmmgmm_t* model, seq_t* seq, double* alpha) {
+   int i, j, t;
+
+   for (i = 0; i < model->n; i++) {
+   alpha[i] = model->pi[i] * pdf_gmm( // TODO
+   }
+   }
+ */
