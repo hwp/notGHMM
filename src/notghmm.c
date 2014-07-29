@@ -211,7 +211,66 @@ void forward_proc_log(const hmmgmm_t* model,
 
 void backward_proc(const hmmgmm_t* model, const seq_t* seq,
     gsl_matrix* beta) {
-  // TODO
- 
+  size_t i, t;
+
+  for (i = 0; i < model->n; i++) {
+    gsl_matrix_set(beta, seq->size - 1, i, 1.0);
+  }
+
+  gsl_vector* b = gsl_vector_alloc(model->n);
+  for (t = seq->size - 1; t > 0; t--) {
+    for (i = 0; i < model->n; i++) {
+      gsl_vector_set(b, i,
+          gmm_pdf(model->states[i], seq->data[t]));
+    }
+
+    gsl_vector_view p = gsl_matrix_row(beta, t);
+    gsl_vector_view n = gsl_matrix_row(beta, t - 1);
+    gsl_vector_mul(b, &p.vector);
+    gsl_blas_dgemv(CblasNoTrans, 1.0, model->a, b, 0.0,
+        &n.vector);
+  }
+  gsl_vector_free(b);
+}
+
+void backward_proc_log(const hmmgmm_t* model,
+    const seq_t* seq, gsl_matrix* logbeta) {
+  size_t i, j, t;
+
+  gsl_matrix* loga = gsl_matrix_alloc(model->n, model->n);
+  for (i = 0; i < model->n; i++) {
+    for (j = 0; j < model->n; j++) {
+      gsl_matrix_set(loga, i, j, 
+          log(gsl_matrix_get(model->a, i, j)));
+    }
+  }
+
+  for (i = 0; i < model->n; i++) {
+    gsl_matrix_set(logbeta, seq->size - 1, i, 0.0);
+  }
+
+  gsl_vector* b = gsl_vector_alloc(model->n);
+  gsl_vector* v = gsl_vector_alloc(model->n);
+  for (t = seq->size - 1; t > 0 ; t--) {
+    for (i = 0; i < model->n; i++) {
+      gsl_vector_set(b, i, log(gmm_pdf(model->states[i],
+              seq->data[t])));
+    }
+
+    gsl_vector_view p = gsl_matrix_row(logbeta, t);
+    gsl_vector_view n = gsl_matrix_row(logbeta, t - 1);
+    gsl_vector_add(b, &p.vector);
+    
+    for (i = 0; i < model->n; i++) {
+      gsl_vector_view a = gsl_matrix_row(loga, i);
+      gsl_vector_memcpy(v, &a.vector);
+      gsl_vector_add(v, b);
+      gsl_vector_set(&n.vector, i, log_sum_exp(v));
+    }
+  }
+
+  gsl_matrix_free(loga);
+  gsl_vector_free(b);
+  gsl_vector_free(v);
 }
 

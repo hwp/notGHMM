@@ -81,9 +81,15 @@ int main(int argc, char** argv) {
   gsl_matrix* logalpha2 = gsl_matrix_alloc(size, model2->n);
   forward_proc_log(model2, seq, logalpha2);
 
+  gsl_matrix* beta = gsl_matrix_alloc(size, model->n);
+  backward_proc(model, seq, beta);
+
+  gsl_matrix* logbeta = gsl_matrix_alloc(size, model->n);
+  backward_proc_log(model, seq, logbeta);
+
   int i;
   for (i = 0; i < size; i++) {
-    printf("%g %g; %g %g; %g %g; %g %g\n",
+    printf("%g %g; %g %g; %g %g; %g %g; %g %g; %g %g\n",
         gsl_vector_get(seq->data[i], 0),
         gsl_vector_get(seq->data[i], 1),
         log(gsl_matrix_get(alpha, i, 0)),
@@ -91,12 +97,28 @@ int main(int argc, char** argv) {
         gsl_matrix_get(logalpha, i, 0),
         gsl_matrix_get(logalpha, i, 1),
         gsl_matrix_get(logalpha2, i, 0),
-        gsl_matrix_get(logalpha2, i, 1));
+        gsl_matrix_get(logalpha2, i, 1),
+        log(gsl_matrix_get(beta, i, 0)),
+        log(gsl_matrix_get(beta, i, 1)),
+        gsl_matrix_get(logbeta, i, 0),
+        gsl_matrix_get(logbeta, i, 1));
   }
 
+  printf("================\n");
+  gsl_matrix_add(logbeta, logalpha);
+  for (i = 0; i < size; i++) {
+    gsl_vector_view v = gsl_matrix_row(logbeta, i);
+    printf("%g %g; %g\n",
+        gsl_matrix_get(logbeta, i, 0),
+        gsl_matrix_get(logbeta, i, 1),
+        log_sum_exp(&v.vector));
+  }
+ 
   gsl_matrix_free(alpha);
   gsl_matrix_free(logalpha);
   gsl_matrix_free(logalpha2);
+  gsl_matrix_free(beta);
+  gsl_matrix_free(logbeta);
   hmmgmm_free(model);
   hmmgmm_free(model2);
 
