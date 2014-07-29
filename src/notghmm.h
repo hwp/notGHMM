@@ -124,32 +124,34 @@ seq_t* seq_gen(const hmmgmm_t* model, size_t size);
 /**
  * Forward procedure.
  * Calculate all forward variable defined as:
- *     alpha_t(i) = p(o_1, ..., o_t, q_t = i);
+ *     @f[ \alpha_t(i) = P(o_1, ..., o_t, q_t = i) @f]
  * recursively using:
- *     alpha_1(i) = pi_i * b_i(o_1)
- *     alpha_{t+1}(j) = [sum_{i=1}^N alpha_t(i)*a_ij]*b_j(o_{t+1})
+ *     @f[ \alpha_1(i) = \pi_i b_i(o_1) @f]
+ *     @f[ \alpha_{t+1}(j) = (\sum_{i=1}^N \alpha_t(i)a_{ij})b_j(o_{t+1}) @f]
  *
  * @param model the HMM model.
  * @param seq the observed sequence.
  * @param[out] alpha the result forward variable, which is
- *   a matrix of size seq->size * model->n. The matrix should
- *   be allocated before calling.
+ *   a matrix of size seq->size * model->n.
+ *   The matrix should be allocated before calling.
  *
  * @warning underflow issue is not considered in this function.
  *   For implementation that take scaling into account,
- *   use forward_proc_log.
+ *   use forward_proc_log().
  */
 void forward_proc(const hmmgmm_t* model, const seq_t* seq,
     gsl_matrix* alpha);
 
 /**
  * Forward procedure, which take scaling into account.
- * Calculate the logarithm of all forward variables, aka alpha.
+ * Calculate the logarithm of all forward variables, aka @f$ \alpha @f$.
  * The calculation use the following formulas:
- *     log alpha_1(i) = log pi_i + log b_i(o_1)
- *     log alhpa_{t+1}(j) = -M + log(sum exp 
- *       (log a_ij + log alpha_t(i) + M)) + log b_j(o_{t+1})
- *   where M = -max_i{log a_ij + log alpha_t(i)}
+ *     @f[ \log\alpha_1(i) = \log\pi_i + \log b_i(o_1) @f]
+ *     @f[ \log\alpha_{t+1}(j) = \log\sum_i
+ *       \exp(\log a_{ij} + \log\alpha_t(i))
+ *       + \log b_j(o_{t+1}) @f]
+ * here the log sum exp is calculated by log_sum_exp() to 
+ * avoid underflow.
  * 
  * @param model the HMM model.
  * @param seq the observed sequence.
@@ -159,6 +161,47 @@ void forward_proc(const hmmgmm_t* model, const seq_t* seq,
  */
 void forward_proc_log(const hmmgmm_t* model,
     const seq_t* seq, gsl_matrix* logalpha);
+
+/**
+ * Backward procedure.
+ * Calculate all backward variable defined as:
+ *     @f[ \beta_t(i) = P(o_{t+1}, ..., o_T | q_t = i) @f]
+ * recursively using:
+ *     @f[ \beta_T(i) = 1 @f]
+ *     @f[ \beta_t(i) = \sum_{j=1}^N 
+ *       a_{ij}b_j(o_{t+1})\beta_{t+1}(j) @f]
+ *
+ * @param model the HMM model.
+ * @param seq the observed sequence.
+ * @param[out] beta the result back variable, which is
+ *   a matrix of size seq->size * model->n.
+ *   The matrix should be allocated before calling.
+ *
+ * @warning underflow issue is not considered in this function.
+ *   For implementation that take scaling into account,
+ *   use backward_proc_log().
+ */
+void backward_proc(const hmmgmm_t* model, const seq_t* seq,
+    gsl_matrix* beta);
+
+/**
+ * Back procedure, which take scaling into account.
+ * Calculate the logarithm of all back variables, aka @f$ \beta @f$.
+ * The calculation use the following formulas:
+ *     @f[ \log \beta_T(i) = 0 @f]
+ *     @f[ \log \beta_{t}(i) = \log\sum_j \exp(\log a_{ij}
+ *       + \log b_j(o_{t+1}) + \log \beta_{t+1}(j)) @f]
+ * here the log sum exp is calculated by log_sum_exp() to 
+ * avoid underflow.
+ * 
+ * @param model the HMM model.
+ * @param seq the observed sequence.
+ * @param[out] logbeta the logartithm of backward variable,
+ *   which is a matrix of size seq->size * model->n.
+ *   The matrix should be allocated before calling.
+ */
+void backward_proc_log(const hmmgmm_t* model,
+    const seq_t* seq, gsl_matrix* logbeta);
 
 /**
  * Re-estimate the model parameters using Baum-Welch algorithm.

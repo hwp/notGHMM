@@ -159,11 +159,11 @@ void gmm_gen(const gsl_rng* rng, const gmm_t* gmm,
 
 /**
  * Calcuate the sum of logarithm variables, e.g.
- *     log(sum exp(v_i))
+ *     @f[ \log\sum_i\exp(v_i) @f]
  * To avoid underflow (of at least one element),
  * it is calculated as:
- *     -M + log(sum exp(v_i + M))
- * where M = -max{v_i}
+ *     @f[ -M + \log\sum_i\exp(v_i + M) @f]
+ * where @f$ M = -max_i\{v_i\} @f$
  *
  * @param v the vector to be sumed.
  * 

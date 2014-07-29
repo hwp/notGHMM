@@ -209,3 +209,9 @@ void forward_proc_log(const hmmgmm_t* model,
   gsl_vector_free(v);
 }
 
+void backward_proc(const hmmgmm_t* model, const seq_t* seq,
+    gsl_matrix* beta) {
+  // TODO
+ 
+}
+
