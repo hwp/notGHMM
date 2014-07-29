@@ -34,10 +34,10 @@ int main(int argc, char** argv) {
   state = model->states[1];
   gsl_vector_set(state->comp[0]->mean, 0, 1.0);
   gsl_vector_set(state->comp[0]->mean, 1, 1.0);
-  gsl_matrix_set(state->comp[0]->cov, 0, 0, 2.0);
+  gsl_matrix_set(state->comp[0]->cov, 0, 0, 1.0);
   gsl_matrix_set(state->comp[0]->cov, 0, 1, -1.0);
   gsl_matrix_set(state->comp[0]->cov, 1, 0, -1.0);
-  gsl_matrix_set(state->comp[0]->cov, 1, 1, 4.0);
+  gsl_matrix_set(state->comp[0]->cov, 1, 1, 2.0);
 
   hmmgmm_t* model2 = hmmgmm_alloc(2, 1, 2);
 
@@ -69,7 +69,7 @@ int main(int argc, char** argv) {
   gsl_matrix_set(state->comp[0]->cov, 1, 1, 4.0);
 
 
-  int size = 1000;
+  int size = 5;
   seq_t* seq = seq_gen(model, size);
 
   gsl_matrix* alpha = gsl_matrix_alloc(size, model->n);
@@ -86,6 +86,9 @@ int main(int argc, char** argv) {
 
   gsl_matrix* logbeta = gsl_matrix_alloc(size, model->n);
   backward_proc_log(model, seq, logbeta);
+
+  size_t* hidden = calloc(size, sizeof(size_t));
+  double p = viterbi_log(model, seq, hidden);
 
   int i;
   for (i = 0; i < size; i++) {
@@ -113,14 +116,24 @@ int main(int argc, char** argv) {
         gsl_matrix_get(logbeta, i, 1),
         log_sum_exp(&v.vector));
   }
+
+  printf("================\n");
+  printf("max p = %g\n", p);
+  for (i = 0; i < size; i++) {
+    printf("%g %g; %ld\n",
+        gsl_vector_get(seq->data[i], 0),
+        gsl_vector_get(seq->data[i], 1),
+        hidden[i]);
+  }
  
+  hmmgmm_free(model);
+  hmmgmm_free(model2);
   gsl_matrix_free(alpha);
   gsl_matrix_free(logalpha);
   gsl_matrix_free(logalpha2);
   gsl_matrix_free(beta);
   gsl_matrix_free(logbeta);
-  hmmgmm_free(model);
-  hmmgmm_free(model2);
+  free(hidden);
 
   return 0;
 }

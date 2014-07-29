@@ -179,14 +179,14 @@ void forward_proc_log(const hmmgmm_t* model,
   gsl_matrix* loga = gsl_matrix_alloc(model->n, model->n);
   for (i = 0; i < model->n; i++) {
     for (j = 0; j < model->n; j++) {
-      gsl_matrix_set(loga, i, j, 
+      gsl_matrix_set(loga, i, j,
           log(gsl_matrix_get(model->a, i, j)));
     }
   }
 
   for (i = 0; i < model->n; i++) {
-    gsl_matrix_set(logalpha, 0, i, 
-        log(gsl_vector_get(model->pi, i)) 
+    gsl_matrix_set(logalpha, 0, i,
+        log(gsl_vector_get(model->pi, i))
         + log(gmm_pdf(model->states[i], seq->data[0])));
   }
 
@@ -200,7 +200,7 @@ void forward_proc_log(const hmmgmm_t* model,
       gsl_vector_memcpy(v, &p.vector);
       gsl_vector_view a = gsl_matrix_column(loga, i);
       gsl_vector_add(v, &a.vector);
-      gsl_vector_set(&n.vector, i, log_sum_exp(v) 
+      gsl_vector_set(&n.vector, i, log_sum_exp(v)
           + log(gmm_pdf(model->states[i], seq->data[t])));
     }
   }
@@ -240,7 +240,7 @@ void backward_proc_log(const hmmgmm_t* model,
   gsl_matrix* loga = gsl_matrix_alloc(model->n, model->n);
   for (i = 0; i < model->n; i++) {
     for (j = 0; j < model->n; j++) {
-      gsl_matrix_set(loga, i, j, 
+      gsl_matrix_set(loga, i, j,
           log(gsl_matrix_get(model->a, i, j)));
     }
   }
@@ -260,7 +260,7 @@ void backward_proc_log(const hmmgmm_t* model,
     gsl_vector_view p = gsl_matrix_row(logbeta, t);
     gsl_vector_view n = gsl_matrix_row(logbeta, t - 1);
     gsl_vector_add(b, &p.vector);
-    
+
     for (i = 0; i < model->n; i++) {
       gsl_vector_view a = gsl_matrix_row(loga, i);
       gsl_vector_memcpy(v, &a.vector);
@@ -272,5 +272,59 @@ void backward_proc_log(const hmmgmm_t* model,
   gsl_matrix_free(loga);
   gsl_vector_free(b);
   gsl_vector_free(v);
+}
+
+double viterbi_log(const hmmgmm_t* model, const seq_t* seq,
+    size_t* hidden) {
+  size_t i, j, t;
+  double m;
+
+  gsl_matrix* loga = gsl_matrix_alloc(model->n, model->n);
+  for (i = 0; i < model->n; i++) {
+    for (j = 0; j < model->n; j++) {
+      gsl_matrix_set(loga, i, j,
+          log(gsl_matrix_get(model->a, i, j)));
+    }
+  }
+
+  gsl_vector* logp = gsl_vector_alloc(model->n);
+  for (i = 0; i < model->n; i++) {
+    gsl_vector_set(logp, i,
+        log(gsl_vector_get(model->pi, i))
+        + log(gmm_pdf(model->states[i], seq->data[0])));
+  }
+
+  size_t* track = calloc((seq->size - 1) * model->n,
+      sizeof(size_t));
+
+  gsl_vector* v = gsl_vector_alloc(model->n);
+  gsl_vector* w = gsl_vector_alloc(model->n);
+  for (t = 1; t < seq->size; t++) {
+    gsl_vector_memcpy(v, logp);
+    for (i = 0; i < model->n; i++) {
+      gsl_vector_memcpy(w, v);
+      gsl_vector_view a = gsl_matrix_column(loga, i);
+      gsl_vector_add(w, &a.vector);
+      m = max_index(w, track + (t - 1) * model->n + i);
+      gsl_vector_set(logp, i, m + log(gmm_pdf(model->states[i],
+              seq->data[t])));
+    }
+  }
+
+  m = max_index(logp, &j);
+
+  hidden[seq->size - 1] = j;
+  for (t = seq->size - 1; t > 0; t--) {
+    j = track[(t - 1) * model->n + j];
+    hidden[t - 1] = j;
+  }
+
+  gsl_matrix_free(loga);
+  gsl_vector_free(logp);
+  gsl_vector_free(v);
+  gsl_vector_free(w);
+  free(track);
+
+  return m;
 }
 

@@ -104,7 +104,7 @@ void gmm_free(gmm_t* gmm);
  *
  * @param rng the GSL random number generator.
  * @param dist the distribution.
- *   Each element should be non-negative. The sum should be 1.
+ *   Each element must be non-negative. The sum must be 1.
  *   In implementation, the value of the last element is
  *   ignored. Instead, it is considered as 1 - sum of
  *   previous elements.
@@ -170,6 +170,19 @@ void gmm_gen(const gsl_rng* rng, const gmm_t* gmm,
  * @return the log sum of exponent of all elements.
  */
 double log_sum_exp(const gsl_vector* v);
+
+/**
+ * Find the maximum value and its index from a vector.
+ *
+ * @param v the vector.
+ * @param[out] index the index of the maximum element. 
+ *   If there are more than one maximum elements, the one 
+ *   with the lowest index will be returned.
+ *   If index is NULL, the result will not be saved.
+ *
+ * @return the maximum value.
+ */
+double max_index(gsl_vector* v, size_t* index);
 
 #endif  // UTILS_H_
 

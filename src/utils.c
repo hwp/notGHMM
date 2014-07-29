@@ -203,3 +203,21 @@ double log_sum_exp(const gsl_vector* v) {
   return -m + log(s);
 }
 
+double max_index(gsl_vector* v, size_t* index) {
+  size_t i;
+  size_t id = -1;
+  double m = -HUGE_VAL;
+  for (i = 0; i < v->size; i++) {
+    if (gsl_vector_get(v, i) > m) {
+      id = i;
+      m = gsl_vector_get(v, i);
+    }
+  }
+
+  if (index) {
+    *index = id;
+  }
+
+  return m;
+}
+

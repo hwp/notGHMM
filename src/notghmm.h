@@ -117,7 +117,7 @@ void hmmgmm_free(hmmgmm_t* model);
  *
  * @return the generated sequence.
  *
- * @warning the returned sequence should be freed after use.
+ * @warning the returned sequence must be freed after use.
  */
 seq_t* seq_gen(const hmmgmm_t* model, size_t size);
 
@@ -133,7 +133,7 @@ seq_t* seq_gen(const hmmgmm_t* model, size_t size);
  * @param seq the observed sequence.
  * @param[out] alpha the result forward variable, which is
  *   a matrix of size seq->size * model->n.
- *   The matrix should be allocated before calling.
+ *   The matrix must be allocated before calling.
  *
  * @warning underflow issue is not considered in this function.
  *   For implementation that take scaling into account,
@@ -150,14 +150,14 @@ void forward_proc(const hmmgmm_t* model, const seq_t* seq,
  *     @f[ \log\alpha_{t+1}(j) = \log\sum_i
  *       \exp(\log a_{ij} + \log\alpha_t(i))
  *       + \log b_j(o_{t+1}) @f]
- * here the log sum exp is calculated by log_sum_exp() to 
+ * here the log sum exp is calculated by log_sum_exp() to
  * avoid underflow.
- * 
+ *
  * @param model the HMM model.
  * @param seq the observed sequence.
  * @param[out] logalpha the logartithm of forward variable,
  *   which is a matrix of size seq->size * model->n.
- *   The matrix should be allocated before calling.
+ *   The matrix must be allocated before calling.
  */
 void forward_proc_log(const hmmgmm_t* model,
     const seq_t* seq, gsl_matrix* logalpha);
@@ -168,14 +168,14 @@ void forward_proc_log(const hmmgmm_t* model,
  *     @f[ \beta_t(i) = P(o_{t+1}, ..., o_T | q_t = i) @f]
  * recursively using:
  *     @f[ \beta_T(i) = 1 @f]
- *     @f[ \beta_t(i) = \sum_{j=1}^N 
+ *     @f[ \beta_t(i) = \sum_{j=1}^N
  *       a_{ij}b_j(o_{t+1})\beta_{t+1}(j) @f]
  *
  * @param model the HMM model.
  * @param seq the observed sequence.
  * @param[out] beta the result back variable, which is
  *   a matrix of size seq->size * model->n.
- *   The matrix should be allocated before calling.
+ *   The matrix must be allocated before calling.
  *
  * @warning underflow issue is not considered in this function.
  *   For implementation that take scaling into account,
@@ -191,17 +191,34 @@ void backward_proc(const hmmgmm_t* model, const seq_t* seq,
  *     @f[ \log \beta_T(i) = 0 @f]
  *     @f[ \log \beta_{t}(i) = \log\sum_j \exp(\log a_{ij}
  *       + \log b_j(o_{t+1}) + \log \beta_{t+1}(j)) @f]
- * here the log sum exp is calculated by log_sum_exp() to 
+ * here the log sum exp is calculated by log_sum_exp() to
  * avoid underflow.
- * 
+ *
  * @param model the HMM model.
  * @param seq the observed sequence.
  * @param[out] logbeta the logartithm of backward variable,
  *   which is a matrix of size seq->size * model->n.
- *   The matrix should be allocated before calling.
+ *   The matrix must be allocated before calling.
  */
 void backward_proc_log(const hmmgmm_t* model,
     const seq_t* seq, gsl_matrix* logbeta);
+
+/**
+ * Viterbi algorithm.
+ * Given a model and an observation sequence, calculates
+ * the most likely state sequence, e.g.
+ * @f[ \arg\max_q P(o, q|\lambda) @f]
+ *
+ * @param model the HMM model.
+ * @param seq the observed sequence.
+ * @param[out] hidden The most likely hidden sequence
+ *   corresponds to the observation sequence. It is an
+ *   array of size seq->size, which must be preallocated.
+ *
+ * @return the logarithm value of the of the above equation.
+ */
+double viterbi_log(const hmmgmm_t* model, const seq_t* seq,
+    size_t* hidden);
 
 /**
  * Re-estimate the model parameters using Baum-Welch algorithm.
