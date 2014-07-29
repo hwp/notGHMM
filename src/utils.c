@@ -181,3 +181,25 @@ void gmm_gen(const gsl_rng* rng, const gmm_t* gmm,
   gaussian_gen(rng, gmm->comp[i], result);
 }
 
+double log_sum_exp(const gsl_vector* v) {
+  double m = -gsl_vector_max(v);
+  if (m == HUGE_VAL) {
+    return -HUGE_VAL;
+  }
+
+  gsl_vector* w = gsl_vector_alloc(v->size);
+  gsl_vector_memcpy(w, v);
+  gsl_vector_add_constant(w, m);
+
+
+  double s = 0.0;
+  int i;
+  for (i = 0; i < w->size; i++) {
+    s += exp(gsl_vector_get(w, i));
+  }
+
+  gsl_vector_free(w);
+
+  return -m + log(s);
+}
+

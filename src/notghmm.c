@@ -8,6 +8,7 @@
 #include "utils.h"
 
 #include <stdlib.h>
+#include <math.h>
 #include <time.h>
 #include <assert.h>
 
@@ -146,7 +147,8 @@ seq_t* seq_gen(const hmmgmm_t* model, size_t size) {
   return seq;
 }
 
-void forward_proc(const hmmgmm_t* model, const seq_t* seq, gsl_matrix* alpha) {
+void forward_proc(const hmmgmm_t* model, const seq_t* seq,
+    gsl_matrix* alpha) {
   size_t i, t;
 
   for (i = 0; i < model->n; i++) {
@@ -168,5 +170,42 @@ void forward_proc(const hmmgmm_t* model, const seq_t* seq, gsl_matrix* alpha) {
     gsl_vector_mul(&n.vector, b);
   }
   gsl_vector_free(b);
+}
+
+void forward_proc_log(const hmmgmm_t* model,
+    const seq_t* seq, gsl_matrix* logalpha) {
+  int i, j, t;
+
+  gsl_matrix* loga = gsl_matrix_alloc(model->n, model->n);
+  for (i = 0; i < model->n; i++) {
+    for (j = 0; j < model->n; j++) {
+      gsl_matrix_set(loga, i, j, 
+          log(gsl_matrix_get(model->a, i, j)));
+    }
+  }
+
+  for (i = 0; i < model->n; i++) {
+    gsl_matrix_set(logalpha, 0, i, 
+        log(gsl_vector_get(model->pi, i)) 
+        + log(gmm_pdf(model->states[i], seq->data[0])));
+  }
+
+  gsl_vector* v = gsl_vector_alloc(model->n);
+
+  for (t = 1; t < seq->size; t++) {
+    gsl_vector_view p = gsl_matrix_row(logalpha, t - 1);
+    gsl_vector_view n = gsl_matrix_row(logalpha, t);
+
+    for (i = 0; i < model->n; i++) {
+      gsl_vector_memcpy(v, &p.vector);
+      gsl_vector_view a = gsl_matrix_column(loga, i);
+      gsl_vector_add(v, &a.vector);
+      gsl_vector_set(&n.vector, i, log_sum_exp(v) 
+          + log(gmm_pdf(model->states[i], seq->data[t])));
+    }
+  }
+
+  gsl_matrix_free(loga);
+  gsl_vector_free(v);
 }
 

@@ -157,5 +157,19 @@ double gmm_pdf(const gmm_t* gmm, const gsl_vector* x);
 void gmm_gen(const gsl_rng* rng, const gmm_t* gmm,
     gsl_vector* result);
 
+/**
+ * Calcuate the sum of logarithm variables, e.g.
+ *     log(sum exp(v_i))
+ * To avoid underflow (of at least one element),
+ * it is calculated as:
+ *     -M + log(sum exp(v_i + M))
+ * where M = -max{v_i}
+ *
+ * @param v the vector to be sumed.
+ * 
+ * @return the log sum of exponent of all elements.
+ */
+double log_sum_exp(const gsl_vector* v);
+
 #endif  // UTILS_H_
 

@@ -134,8 +134,31 @@ seq_t* seq_gen(const hmmgmm_t* model, size_t size);
  * @param[out] alpha the result forward variable, which is
  *   a matrix of size seq->size * model->n. The matrix should
  *   be allocated before calling.
+ *
+ * @warning underflow issue is not considered in this function.
+ *   For implementation that take scaling into account,
+ *   use forward_proc_log.
  */
-void forward_proc(const hmmgmm_t* model, const seq_t* seq, gsl_matrix* alpha);
+void forward_proc(const hmmgmm_t* model, const seq_t* seq,
+    gsl_matrix* alpha);
+
+/**
+ * Forward procedure, which take scaling into account.
+ * Calculate the logarithm of all forward variables, aka alpha.
+ * The calculation use the following formulas:
+ *     log alpha_1(i) = log pi_i + log b_i(o_1)
+ *     log alhpa_{t+1}(j) = -M + log(sum exp 
+ *       (log a_ij + log alpha_t(i) + M)) + log b_j(o_{t+1})
+ *   where M = -max_i{log a_ij + log alpha_t(i)}
+ * 
+ * @param model the HMM model.
+ * @param seq the observed sequence.
+ * @param[out] logalpha the logartithm of forward variable,
+ *   which is a matrix of size seq->size * model->n.
+ *   The matrix should be allocated before calling.
+ */
+void forward_proc_log(const hmmgmm_t* model,
+    const seq_t* seq, gsl_matrix* logalpha);
 
 /**
  * Re-estimate the model parameters using Baum-Welch algorithm.

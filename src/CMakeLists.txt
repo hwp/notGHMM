@@ -3,8 +3,7 @@
 
 add_executable(genseq_test genseq_test.c notghmm.c utils.c)
 target_link_libraries(genseq_test ${GSL_LIBRARIES})
-
-#if(UNIX)
-#  target_link_libraries(genseq_test m)
-#endif(UNIX)
+if(UNIX)
+  target_link_libraries(genseq_test m)
+endif(UNIX)
 
