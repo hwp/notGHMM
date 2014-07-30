@@ -125,6 +125,18 @@ void hmmgmm_free(hmmgmm_t* model) {
   }
 }
 
+void hmmgmm_memcpy(hmmgmm_t* dest, const hmmgmm_t* src) {
+  assert(dest->n == src->n && dest->k == src->k 
+      && dest->dim == src->dim);
+  gsl_vector_memcpy(dest->pi, src->pi);
+  gsl_matrix_memcpy(dest->a, src->a);
+
+  int i;
+  for (i = 0; i < src->n; i++) {
+    gmm_memcpy(dest->states[i], src->states[i]);
+  }
+}
+
 seq_t* seq_gen(const hmmgmm_t* model, size_t size) {
   seq_t* seq = seq_alloc(size, model->dim);
   assert(seq);
@@ -207,6 +219,12 @@ void forward_proc_log(const hmmgmm_t* model,
 
   gsl_matrix_free(loga);
   gsl_vector_free(v);
+}
+
+double hmm_log_likelihood(const gsl_matrix* logalpha) {
+  gsl_vector_const_view v = gsl_matrix_const_row(logalpha,
+      logalpha->size1 - 1);
+  return log_sum_exp(&v.vector);
 }
 
 void backward_proc(const hmmgmm_t* model, const seq_t* seq,
@@ -326,5 +344,201 @@ double viterbi_log(const hmmgmm_t* model, const seq_t* seq,
   free(track);
 
   return m;
+}
+
+void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
+  hmmgmm_t* nmodel = hmmgmm_alloc(model->n, model->k,
+      model->dim);
+  gsl_vector* gamma = gsl_vector_alloc(model->n);
+  gsl_vector* cgamma = gsl_vector_alloc(model->k);
+  gsl_matrix* xi = gsl_matrix_alloc(model->n, model->n);
+  gsl_matrix* loga = gsl_matrix_alloc(model->n, model->n);
+  gsl_matrix* scgamma = gsl_matrix_alloc(model->n, model->k);
+  gsl_vector* mean = gsl_vector_alloc(model->dim);
+  gsl_matrix* cov = gsl_matrix_alloc(model->dim, model->dim);
+
+  size_t i, j, s, t;
+  double slogpo = -HUGE_VAL;
+  double plogpo = -HUGE_VAL;
+  int iter = 0;
+
+  do {
+    plogpo = slogpo;
+    slogpo = 0.0;
+
+    // Initialize
+    gsl_vector_set_zero(nmodel->pi);
+    gsl_matrix_set_zero(nmodel->a);
+    for (i = 0; i < nmodel->n; i++) {
+      gmm_t* state = nmodel->states[i];
+      gsl_vector_set_zero(state->weight);
+      for (j = 0; j < nmodel->k; j++) {
+        gsl_vector_set_zero(state->comp[j]->mean);
+        gsl_matrix_set_zero(state->comp[j]->cov);
+      }
+    }
+
+    for (i = 0; i < model->n; i++) {
+      for (j = 0; j < model->n; j++) {
+        gsl_matrix_set(loga, i, j,
+            log(gsl_matrix_get(model->a, i, j)));
+      }
+    }
+
+    gsl_matrix_set_zero(scgamma);
+
+    // Accumulate
+    for (s = 0; s < nos; s++) {
+      gsl_matrix* logalpha = gsl_matrix_alloc(data[s]->size,
+          model->n);
+      gsl_matrix* logbeta = gsl_matrix_alloc(data[s]->size,
+          model->n);
+
+      forward_proc_log(model, data[s], logalpha);
+      backward_proc_log(model, data[s], logbeta);
+
+      double logpo = hmm_log_likelihood(logalpha);
+      slogpo += logpo;
+
+      for (t = 0; t < data[s]->size; t++) {
+        for (i = 0; i < model->n; i++) {
+          // Calculate gamma
+          gsl_vector_set(gamma, i, exp(
+                gsl_matrix_get(logalpha, t, i)
+                + gsl_matrix_get(logbeta, t, i) - logpo));
+        }
+
+        if (t == 0) {
+          // Accumulate pi
+          gsl_vector_add(nmodel->pi, gamma);
+        }
+
+        if (t < data[s]->size - 1) {
+          // Caculate xi
+          for (j = 0; j < model->n; j++) {
+            double logb = log(gmm_pdf(model->states[j],
+                  data[s]->data[t + 1]));
+            for (i = 0; i < model->n; i++) {
+              gsl_matrix_set(xi, i, j, exp(
+                    gsl_matrix_get(logalpha, t, i)
+                    + gsl_matrix_get(loga, i, j)
+                    + gsl_matrix_get(logbeta, t + 1, j)
+                    + logb - logpo));
+            }
+          }
+
+          // Accumulate a
+          gsl_matrix_add(nmodel->a, xi);
+        }
+
+        for (i = 0; i < model->n; i++) {
+          gmm_t* state = model->states[i];
+          gmm_t* nstate = nmodel->states[i];
+
+          // Calculate cgamma of mixture components
+          for (j = 0; j < model->k; j++) {
+            gsl_vector_set(cgamma, j, 
+                gsl_vector_get(state->weight, j)
+                * gaussian_pdf(state->comp[j], data[s]->data[t]));
+          }
+
+          double sum = gsl_blas_dasum(cgamma);
+          if (sum > 0) {
+            // Normalize
+            gsl_vector_scale(cgamma, 
+                gsl_vector_get(gamma, i) / sum);
+
+            // Accumulate mixture weight
+            gsl_vector_add(nstate->weight, cgamma);
+
+            // Accumulate mean and cov
+            for (j = 0; j < model->k; j++) {
+              gsl_vector_memcpy(mean, data[s]->data[t]);
+              gsl_vector_scale(mean, gsl_vector_get(cgamma, j));
+              gsl_vector_add(nstate->comp[j]->mean, mean);
+
+              gsl_vector_memcpy(mean, data[s]->data[t]);
+              gsl_vector_sub(mean, state->comp[j]->mean);
+              gsl_matrix_set_zero(cov);
+              gsl_blas_dger(gsl_vector_get(cgamma, j), mean, mean, cov);
+              gsl_matrix_add(nstate->comp[j]->cov, cov);
+
+              *gsl_matrix_ptr(scgamma, i, j) 
+                += gsl_vector_get(cgamma, j);
+            }
+          }
+        }
+      }
+
+      gsl_matrix_free(logalpha);
+      gsl_matrix_free(logbeta);
+    }
+
+    // Normalize
+    // Normalize pi, sum = 1
+    gsl_vector_scale(nmodel->pi, 
+        1.0 / gsl_blas_dasum(nmodel->pi));
+
+    double scale;
+    for (i = 0; i < model->n; i++) {
+      // Normalize a, sum of each row = 1
+      gsl_vector_view v = gsl_matrix_row(nmodel->a, i);
+      scale = gsl_blas_dasum(&v.vector);
+      if (scale > 0) {
+        gsl_vector_scale(&v.vector, 1.0 / scale);
+
+        gmm_t* state = nmodel->states[i];
+
+        // Normalize weight, sum = 1
+        gsl_vector_scale(state->weight, 
+            1.0 / gsl_blas_dasum(state->weight));
+
+        for (j = 0; j < model->k; j++) {
+          scale = gsl_matrix_get(scgamma, i, j);
+          if (scale > 0) {
+            // Normalize (rescale) mean
+            gsl_vector_scale(state->comp[j]->mean, 1.0 / scale);
+
+            // Normalize (rescale) cov
+            gsl_matrix_scale(state->comp[j]->cov, 1.0 / scale);
+          }
+          else {
+            fprintf(stderr, "Warning: state %ld, component %ld "
+                "not visited\n", i, j);
+            // Copy from original model
+            gaussian_memcpy(state->comp[j],
+                model->states[i]->comp[j]);
+          }
+        }
+      }
+      else {
+        fprintf(stderr, "Warning: state %ld, component %ld "
+            "not visited\n", i, j);
+        // Copy from original model
+        gsl_vector_view vo = gsl_matrix_row(model->a, i);
+        gsl_vector_memcpy(&v.vector, &vo.vector);
+        gmm_memcpy(nmodel->states[i], model->states[i]);
+      }
+    }
+    
+    // Replace the original
+    hmmgmm_memcpy(model, nmodel);
+
+    // Here the log p is of the previous model
+    // And the difference is calculated with 
+    //   the previous previous model
+    fprintf(stderr, "Iteration %d: log p = %g, "
+        "difference = %g\n", iter, slogpo, slogpo - plogpo);
+    iter++;
+  } while (slogpo - plogpo > 0.01);
+
+  hmmgmm_free(nmodel);
+  gsl_vector_free(gamma);
+  gsl_vector_free(cgamma);
+  gsl_matrix_free(xi);
+  gsl_matrix_free(loga);
+  gsl_matrix_free(scgamma);
+  gsl_vector_free(mean);
+  gsl_matrix_free(cov);
 }
 

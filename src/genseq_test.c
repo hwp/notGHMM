@@ -69,7 +69,7 @@ int main(int argc, char** argv) {
   gsl_matrix_set(state->comp[0]->cov, 1, 1, 4.0);
 
 
-  int size = 5;
+  int size = 50;
   seq_t* seq = seq_gen(model, size);
 
   gsl_matrix* alpha = gsl_matrix_alloc(size, model->n);
@@ -125,7 +125,11 @@ int main(int argc, char** argv) {
         gsl_vector_get(seq->data[i], 1),
         hidden[i]);
   }
- 
+
+  seq_t** data = calloc(1, sizeof(seq_t*));
+  data[0] = seq;
+  baum_welch(model2, data, 1);
+
   hmmgmm_free(model);
   hmmgmm_free(model2);
   gsl_matrix_free(alpha);

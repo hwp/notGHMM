@@ -7,6 +7,7 @@
 #include "utils.h"
 
 #include <math.h>
+#include <assert.h>
 
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
@@ -41,6 +42,13 @@ void gaussian_free(gaussian_t* dist) {
     }
     free(dist);
   }
+}
+
+void gaussian_memcpy(gaussian_t* dest, const gaussian_t* src) {
+  assert(dest->dim == src->dim);
+
+  gsl_vector_memcpy(dest->mean, src->mean);
+  gsl_matrix_memcpy(dest->cov, src->cov);
 }
 
 gmm_t* gmm_alloc(size_t dim, size_t k) {
@@ -97,6 +105,16 @@ void gmm_free(gmm_t* gmm) {
     }
 
     free(gmm);
+  }
+}
+
+void gmm_memcpy(gmm_t* dest, const gmm_t* src) {
+  assert(dest->k == src->k && dest->dim == src->dim);
+
+  gsl_vector_memcpy(dest->weight, src->weight);
+  int i;
+  for (i = 0; i < src->k; i++) {
+    gaussian_memcpy(dest->comp[i], src->comp[i]);
   }
 }
 

@@ -78,6 +78,15 @@ gaussian_t* gaussian_alloc(size_t dim);
 void gaussian_free(gaussian_t* dist);
 
 /**
+ * Copy a Gaussian distribution into another.
+ * The two models must have the same dim.
+ *
+ * @param dest the distribution to be copied to.
+ * @param src the distribution to be copied from.
+ */
+void gaussian_memcpy(gaussian_t* dest, const gaussian_t* src);
+
+/**
  * Allocate memory for a Gaussian Mixture model.
  * dim and k are set.
  * weight and comp are allocated but not initialized.
@@ -98,6 +107,15 @@ gmm_t* gmm_alloc(size_t dim, size_t k);
  *    performed.
  */
 void gmm_free(gmm_t* gmm);
+
+/**
+ * Copy a GMM into another. The two models must have
+ * the same k and dim;
+ *
+ * @param dest the model to be copied to.
+ * @param src the model to be copied from.
+ */
+void gmm_memcpy(gmm_t* dest, const gmm_t* src);
 
 /**
  * Generate a random sample from a discrete distribution.

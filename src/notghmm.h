@@ -107,6 +107,15 @@ hmmgmm_t* hmmgmm_alloc(size_t n, size_t k, size_t dim);
  */
 void hmmgmm_free(hmmgmm_t* model);
 
+/**
+ * Copy a HMM into another. The two models must have
+ * the same size (aka n, k and dim);
+ *
+ * @param dest the model to be copied to.
+ * @param src the model to be copied from.
+ */
+void hmmgmm_memcpy(hmmgmm_t* dest, const hmmgmm_t* src);
+
 // TODO : some initialization functions.
 
 /**
@@ -161,6 +170,17 @@ void forward_proc(const hmmgmm_t* model, const seq_t* seq,
  */
 void forward_proc_log(const hmmgmm_t* model,
     const seq_t* seq, gsl_matrix* logalpha);
+
+/**
+ * Probability of the model and a observation sequence.
+ *   @f[ \log P(o|\lambda) @f]
+ *
+ * @param logalpha the log forward variable returned by
+ *   forward_proc_log().
+ *
+ * @return the probability.
+ */
+double hmm_log_likelihood(const gsl_matrix* logalpha);
 
 /**
  * Backward procedure.
@@ -227,7 +247,7 @@ double viterbi_log(const hmmgmm_t* model, const seq_t* seq,
  * @param data a set of observed sequences.
  * @param nos number of sequences.
  */
-void baum_welch(hmmgmm_t* model, const seq_t** data, size_t nos);
+void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos);
 
 #endif  // NOTGHMM_H_
 
