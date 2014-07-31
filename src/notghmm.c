@@ -131,9 +131,35 @@ void hmmgmm_memcpy(hmmgmm_t* dest, const hmmgmm_t* src) {
   gsl_vector_memcpy(dest->pi, src->pi);
   gsl_matrix_memcpy(dest->a, src->a);
 
-  int i;
+  size_t i;
   for (i = 0; i < src->n; i++) {
     gmm_memcpy(dest->states[i], src->states[i]);
+  }
+}
+
+void hmmgmm_fprint(const hmmgmm_t* model, FILE* stream) {
+  fprintf(stream, "HMM Parameters\n");
+  fprintf(stream, "N = %ld\n", model->n);
+  fprintf(stream, "K = %ld\n", model->k);
+  fprintf(stream, "d = %ld\n", model->dim);
+  fprintf(stream, "pi = ");
+  vector_fprint(model->pi, stream);
+  fprintf(stream, "a = \n");
+  matrix_fprint(model->a, stream);
+  size_t i, j;
+  for (i = 0; i < model->n; i++) {
+    gmm_t* state = model->states[i];
+    fprintf(stream, "\nState %ld\n", i);
+    fprintf(stream, "weight = ");
+    vector_fprint(state->weight, stream);
+
+    for (j = 0; j < model->k; j++) {
+      fprintf(stream, "Component %ld\n", j);
+      fprintf(stream, "mean = ");
+      vector_fprint(state->comp[j]->mean, stream);
+      fprintf(stream, "cov = \n");
+      matrix_fprint(state->comp[j]->cov, stream);
+    }
   }
 }
 
@@ -186,7 +212,7 @@ void forward_proc(const hmmgmm_t* model, const seq_t* seq,
 
 void forward_proc_log(const hmmgmm_t* model,
     const seq_t* seq, gsl_matrix* logalpha) {
-  int i, j, t;
+  size_t i, j, t;
 
   gsl_matrix* loga = gsl_matrix_alloc(model->n, model->n);
   for (i = 0; i < model->n; i++) {
@@ -520,7 +546,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
         gmm_memcpy(nmodel->states[i], model->states[i]);
       }
     }
-    
+
     // Replace the original
     hmmgmm_memcpy(model, nmodel);
 

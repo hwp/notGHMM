@@ -112,7 +112,7 @@ void gmm_memcpy(gmm_t* dest, const gmm_t* src) {
   assert(dest->k == src->k && dest->dim == src->dim);
 
   gsl_vector_memcpy(dest->weight, src->weight);
-  int i;
+  size_t i;
   for (i = 0; i < src->k; i++) {
     gaussian_memcpy(dest->comp[i], src->comp[i]);
   }
@@ -211,7 +211,7 @@ double log_sum_exp(const gsl_vector* v) {
 
 
   double s = 0.0;
-  int i;
+  size_t i;
   for (i = 0; i < w->size; i++) {
     s += exp(gsl_vector_get(w, i));
   }
@@ -237,5 +237,23 @@ double max_index(gsl_vector* v, size_t* index) {
   }
 
   return m;
+}
+
+void vector_fprint(const gsl_vector* v, FILE* stream) {
+  size_t i;
+  for (i = 0; i < v->size - 1; i++) {
+    fprintf(stream, "%g ", gsl_vector_get(v, i));
+  }
+  fprintf(stream, "%g\n", gsl_vector_get(v, i));
+}
+
+void matrix_fprint(const gsl_matrix* m, FILE* stream) {
+  size_t i, j;
+  for (i = 0; i < m->size1; i++) {
+    for (j = 0; j < m->size2 - 1; j++) {
+      fprintf(stream, "%g ", gsl_matrix_get(m, i, j));
+    }
+    fprintf(stream, "%g\n", gsl_matrix_get(m, i, j));
+  }
 }
 

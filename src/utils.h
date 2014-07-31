@@ -202,5 +202,21 @@ double log_sum_exp(const gsl_vector* v);
  */
 double max_index(gsl_vector* v, size_t* index);
 
+/**
+ * Print a vector in human readable format.
+ *
+ * @param v the vector.
+ * @param stream output stream.
+ */
+void vector_fprint(const gsl_vector* v, FILE* stream);
+
+/**
+ * Print a matrix in human readable format.
+ *
+ * @param m the matrix.
+ * @param stream output stream.
+ */
+void matrix_fprint(const gsl_matrix* m, FILE* stream);
+
 #endif  // UTILS_H_
 

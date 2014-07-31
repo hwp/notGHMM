@@ -41,8 +41,8 @@ int main(int argc, char** argv) {
 
   hmmgmm_t* model2 = hmmgmm_alloc(2, 1, 2);
 
-  gsl_vector_set(model2->pi, 0, 1.0);
-  gsl_vector_set(model2->pi, 1, 0.0);
+  gsl_vector_set(model2->pi, 0, .5);
+  gsl_vector_set(model2->pi, 1, .5);
 
   gsl_matrix_set(model2->a, 0, 0, .9);
   gsl_matrix_set(model2->a, 0, 1, .1);
@@ -54,22 +54,21 @@ int main(int argc, char** argv) {
 
   state = model2->states[0];
   gsl_vector_set(state->comp[0]->mean, 0, 0.0);
-  gsl_vector_set(state->comp[0]->mean, 1, 0.0);
+  gsl_vector_set(state->comp[0]->mean, 1, 2.0);
   gsl_matrix_set(state->comp[0]->cov, 0, 0, 1.0);
   gsl_matrix_set(state->comp[0]->cov, 0, 1, 0.0);
   gsl_matrix_set(state->comp[0]->cov, 1, 0, 0.0);
   gsl_matrix_set(state->comp[0]->cov, 1, 1, 1.0);
 
   state = model2->states[1];
-  gsl_vector_set(state->comp[0]->mean, 0, 1.0);
+  gsl_vector_set(state->comp[0]->mean, 0, 3.0);
   gsl_vector_set(state->comp[0]->mean, 1, 1.0);
   gsl_matrix_set(state->comp[0]->cov, 0, 0, 2.0);
   gsl_matrix_set(state->comp[0]->cov, 0, 1, -1.0);
   gsl_matrix_set(state->comp[0]->cov, 1, 0, -1.0);
   gsl_matrix_set(state->comp[0]->cov, 1, 1, 4.0);
 
-
-  int size = 50;
+  size_t size = 500;
   seq_t* seq = seq_gen(model, size);
 
   gsl_matrix* alpha = gsl_matrix_alloc(size, model->n);
@@ -90,7 +89,7 @@ int main(int argc, char** argv) {
   size_t* hidden = calloc(size, sizeof(size_t));
   double p = viterbi_log(model, seq, hidden);
 
-  int i;
+  size_t i;
   for (i = 0; i < size; i++) {
     printf("%g %g; %g %g; %g %g; %g %g; %g %g; %g %g\n",
         gsl_vector_get(seq->data[i], 0),
@@ -126,9 +125,20 @@ int main(int argc, char** argv) {
         hidden[i]);
   }
 
-  seq_t** data = calloc(1, sizeof(seq_t*));
-  data[0] = seq;
-  baum_welch(model2, data, 1);
+  printf("\n================\nModel 1\n");
+  hmmgmm_fprint(model, stdout);
+  printf("\n================\nModel 2\n");
+  hmmgmm_fprint(model2, stdout);
+
+  size_t nos = 100;
+  seq_t** data = calloc(nos, sizeof(seq_t*));
+  for (i = 0; i < nos; i++) {
+    data[i] = seq_gen(model, size);
+  }
+  baum_welch(model2, data, nos);
+
+  printf("\n================\nModel 2 (re-estimated)\n");
+  hmmgmm_fprint(model2, stdout);
 
   hmmgmm_free(model);
   hmmgmm_free(model2);

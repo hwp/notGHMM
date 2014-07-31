@@ -116,6 +116,14 @@ void hmmgmm_free(hmmgmm_t* model);
  */
 void hmmgmm_memcpy(hmmgmm_t* dest, const hmmgmm_t* src);
 
+/**
+ * Print parameters of a HMM in human readable format.
+ *
+ * @param model the HMM.
+ * @param stream output stream.
+ */
+void hmmgmm_fprint(const hmmgmm_t* model, FILE* stream);
+
 // TODO : some initialization functions.
 
 /**
