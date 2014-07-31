@@ -15,8 +15,8 @@ int main(int argc, char** argv) {
   gsl_vector_set(model->pi, 0, 1.0);
   gsl_vector_set(model->pi, 1, 0.0);
 
-  gsl_matrix_set(model->a, 0, 0, .2);
-  gsl_matrix_set(model->a, 0, 1, .8);
+  gsl_matrix_set(model->a, 0, 0, .3);
+  gsl_matrix_set(model->a, 0, 1, .7);
   gsl_matrix_set(model->a, 1, 0, .8);
   gsl_matrix_set(model->a, 1, 1, .2);
 
@@ -53,22 +53,22 @@ int main(int argc, char** argv) {
   gsl_vector_set(model2->states[1]->weight, 0, 1.0);
 
   state = model2->states[0];
-  gsl_vector_set(state->comp[0]->mean, 0, 0.0);
-  gsl_vector_set(state->comp[0]->mean, 1, 2.0);
+  gsl_vector_set(state->comp[0]->mean, 0, 1.0);
+  gsl_vector_set(state->comp[0]->mean, 1, 1.0);
   gsl_matrix_set(state->comp[0]->cov, 0, 0, 1.0);
   gsl_matrix_set(state->comp[0]->cov, 0, 1, 0.0);
   gsl_matrix_set(state->comp[0]->cov, 1, 0, 0.0);
   gsl_matrix_set(state->comp[0]->cov, 1, 1, 1.0);
 
   state = model2->states[1];
-  gsl_vector_set(state->comp[0]->mean, 0, 3.0);
-  gsl_vector_set(state->comp[0]->mean, 1, 1.0);
-  gsl_matrix_set(state->comp[0]->cov, 0, 0, 2.0);
-  gsl_matrix_set(state->comp[0]->cov, 0, 1, -1.0);
-  gsl_matrix_set(state->comp[0]->cov, 1, 0, -1.0);
-  gsl_matrix_set(state->comp[0]->cov, 1, 1, 4.0);
+  gsl_vector_set(state->comp[0]->mean, 0, 0.0);
+  gsl_vector_set(state->comp[0]->mean, 1, 0.0);
+  gsl_matrix_set(state->comp[0]->cov, 0, 0, 1.0);
+  gsl_matrix_set(state->comp[0]->cov, 0, 1, 0.0);
+  gsl_matrix_set(state->comp[0]->cov, 1, 0, 0.0);
+  gsl_matrix_set(state->comp[0]->cov, 1, 1, 1.0);
 
-  size_t size = 500;
+  size_t size = 1000;
   seq_t* seq = seq_gen(model, size);
 
   gsl_matrix* alpha = gsl_matrix_alloc(size, model->n);
@@ -135,13 +135,35 @@ int main(int argc, char** argv) {
   for (i = 0; i < nos; i++) {
     data[i] = seq_gen(model, size);
   }
+  
+  double po = 0.0;
+  double pn = 0.0;
+  for (i = 0; i < nos; i++) {
+    forward_proc_log(model, data[i], logalpha);
+    po += hmm_log_likelihood(logalpha);
+    forward_proc_log(model2, data[i], logalpha);
+    pn += hmm_log_likelihood(logalpha);
+  }
+
   baum_welch(model2, data, nos);
 
   printf("\n================\nModel 2 (re-estimated)\n");
   hmmgmm_fprint(model2, stdout);
 
+  double pr = 0.0;
+  for (i = 0; i < nos; i++) {
+    forward_proc_log(model2, data[i], logalpha);
+    pr += hmm_log_likelihood(logalpha);
+  }
+
+  printf("\n P = %g, %g, %g\n", po, pn, pr);
+
   hmmgmm_free(model);
   hmmgmm_free(model2);
+  seq_free(seq);
+  for (i = 0; i < nos; i++) {
+    seq_free(data[i]);
+  }
   gsl_matrix_free(alpha);
   gsl_matrix_free(logalpha);
   gsl_matrix_free(logalpha2);

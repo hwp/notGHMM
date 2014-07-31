@@ -15,6 +15,8 @@
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_blas.h>
 
+#define BW_STOP_THRESHOLD 0.1
+
 seq_t* seq_alloc(size_t size, size_t dim) {
   size_t i;
   int suc = 0;
@@ -556,7 +558,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
     fprintf(stderr, "Iteration %d: log p = %g, "
         "difference = %g\n", iter, slogpo, slogpo - plogpo);
     iter++;
-  } while (slogpo - plogpo > 0.01);
+  } while (slogpo - plogpo > BW_STOP_THRESHOLD);
 
   hmmgmm_free(nmodel);
   gsl_vector_free(gamma);
