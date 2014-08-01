@@ -139,30 +139,62 @@ void hmmgmm_memcpy(hmmgmm_t* dest, const hmmgmm_t* src) {
   }
 }
 
-void hmmgmm_fprint(const hmmgmm_t* model, FILE* stream) {
+void hmmgmm_fprint(FILE* stream, const hmmgmm_t* model) {
   fprintf(stream, "HMM Parameters\n");
-  fprintf(stream, "N = %ld\n", model->n);
-  fprintf(stream, "K = %ld\n", model->k);
-  fprintf(stream, "d = %ld\n", model->dim);
+  fprintf(stream, "N = %lu\n", model->n);
+  fprintf(stream, "K = %lu\n", model->k);
+  fprintf(stream, "d = %lu\n", model->dim);
   fprintf(stream, "pi = ");
-  vector_fprint(model->pi, stream);
+  vector_fprint(stream, model->pi);
   fprintf(stream, "a = \n");
-  matrix_fprint(model->a, stream);
+  matrix_fprint(stream, model->a);
   size_t i, j;
   for (i = 0; i < model->n; i++) {
     gmm_t* state = model->states[i];
-    fprintf(stream, "\nState %ld\n", i);
+    fprintf(stream, "\nState %lu\n", i);
     fprintf(stream, "weight = ");
-    vector_fprint(state->weight, stream);
+    vector_fprint(stream, state->weight);
 
     for (j = 0; j < model->k; j++) {
-      fprintf(stream, "Component %ld\n", j);
+      fprintf(stream, "Component %lu\n", j);
       fprintf(stream, "mean = ");
-      vector_fprint(state->comp[j]->mean, stream);
+      vector_fprint(stream, state->comp[j]->mean);
       fprintf(stream, "cov = \n");
-      matrix_fprint(state->comp[j]->cov, stream);
+      matrix_fprint(stream, state->comp[j]->cov);
     }
   }
+}
+
+hmmgmm_t* hmmgmm_fscan(FILE* stream) {
+  size_t n, k, dim;
+  fscanf(stream, "HMM Parameters\n");
+  fscanf(stream, "N = %lu\n", &n);
+  fscanf(stream, "K = %lu\n", &k);
+  fscanf(stream, "d = %lu\n", &dim);
+
+  hmmgmm_t* model = hmmgmm_alloc(n, k, dim);
+
+  fscanf(stream, "pi = ");
+  vector_fscan(stream, model->pi);
+  fscanf(stream, "a = \n");
+  matrix_fscan(stream, model->a);
+  size_t i, j;
+  for (i = 0; i < model->n; i++) {
+    gmm_t* state = model->states[i];
+    fscanf(stream, "\nState %*u\n");
+    fscanf(stream, "weight = ");
+    vector_fscan(stream, state->weight);
+
+    for (j = 0; j < model->k; j++) {
+      fscanf(stream, "Component %*u\n");
+      fscanf(stream, "mean = ");
+      vector_fscan(stream, state->comp[j]->mean);
+      fscanf(stream, "cov = \n");
+      matrix_fscan(stream, state->comp[j]->cov);
+    }
+  }
+
+  return model;
 }
 
 seq_t* seq_gen(const hmmgmm_t* model, size_t size) {

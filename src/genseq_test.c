@@ -126,9 +126,9 @@ int main(int argc, char** argv) {
   }
 
   printf("\n================\nModel 1\n");
-  hmmgmm_fprint(model, stdout);
+  hmmgmm_fprint(stdout, model);
   printf("\n================\nModel 2\n");
-  hmmgmm_fprint(model2, stdout);
+  hmmgmm_fprint(stdout, model2);
 
   size_t nos = 100;
   seq_t** data = calloc(nos, sizeof(seq_t*));
@@ -148,7 +148,7 @@ int main(int argc, char** argv) {
   baum_welch(model2, data, nos);
 
   printf("\n================\nModel 2 (re-estimated)\n");
-  hmmgmm_fprint(model2, stdout);
+  hmmgmm_fprint(stdout, model2);
 
   double pr = 0.0;
   for (i = 0; i < nos; i++) {

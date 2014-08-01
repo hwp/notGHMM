@@ -239,21 +239,39 @@ double max_index(gsl_vector* v, size_t* index) {
   return m;
 }
 
-void vector_fprint(const gsl_vector* v, FILE* stream) {
+void vector_fprint(FILE* stream, const gsl_vector* v) {
   size_t i;
   for (i = 0; i < v->size - 1; i++) {
-    fprintf(stream, "%g ", gsl_vector_get(v, i));
+    fprintf(stream, "%.16g ", gsl_vector_get(v, i));
   }
-  fprintf(stream, "%g\n", gsl_vector_get(v, i));
+  fprintf(stream, "%.16g\n", gsl_vector_get(v, i));
 }
 
-void matrix_fprint(const gsl_matrix* m, FILE* stream) {
+void vector_fscan(FILE* stream, gsl_vector* v) {
+  size_t i;
+  for (i = 0; i < v->size - 1; i++) {
+    fscanf(stream, "%lg ", gsl_vector_ptr(v, i));
+  }
+  fscanf(stream, "%lg\n", gsl_vector_ptr(v, i));
+}
+
+void matrix_fprint(FILE* stream, const gsl_matrix* m) {
   size_t i, j;
   for (i = 0; i < m->size1; i++) {
     for (j = 0; j < m->size2 - 1; j++) {
-      fprintf(stream, "%g ", gsl_matrix_get(m, i, j));
+      fprintf(stream, "%.16g ", gsl_matrix_get(m, i, j));
     }
-    fprintf(stream, "%g\n", gsl_matrix_get(m, i, j));
+    fprintf(stream, "%.16g\n", gsl_matrix_get(m, i, j));
+  }
+}
+
+void matrix_fscan(FILE* stream, gsl_matrix* m) {
+  size_t i, j;
+  for (i = 0; i < m->size1; i++) {
+    for (j = 0; j < m->size2 - 1; j++) {
+      fscanf(stream, "%lg ", gsl_matrix_ptr(m, i, j));
+    }
+    fscanf(stream, "%lg\n", gsl_matrix_ptr(m, i, j));
   }
 }
 
