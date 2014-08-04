@@ -586,10 +586,8 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
 
               gsl_vector_memcpy(mean, data[s]->data[t]);
               gsl_vector_sub(mean, state->comp[j]->mean);
-              // TODO cov
-              gsl_matrix_set_zero(cov);
-              gsl_blas_dger(gsl_vector_get(cgamma, j), mean, mean, cov);
-              gsl_matrix_add(nstate->comp[j]->cov, cov);
+              gsl_blas_dger(gsl_vector_get(cgamma, j), mean,
+                  mean, nstate->comp[j]->cov);
 
               *gsl_matrix_ptr(scgamma, i, j) 
                 += gsl_vector_get(cgamma, j);
