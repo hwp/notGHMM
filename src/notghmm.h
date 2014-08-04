@@ -141,8 +141,6 @@ void hmmgmm_fprint(FILE* stream, const hmmgmm_t* model);
  */
 hmmgmm_t* hmmgmm_fscan(FILE* stream);
 
-// TODO : some initialization functions.
-
 /**
  * Generate a sequence of observed data according to a HMM model.
  *
@@ -266,7 +264,25 @@ double viterbi_log(const hmmgmm_t* model, const seq_t* seq,
     size_t* hidden);
 
 /**
+ * Initialize the model with parameters.
+ *
+ * Elements of pi, a, and gmm weights are randomly chosen
+ * from uniform distribution (0.75, 1.25) and then
+ * normalized (the sum is 1).
+ * 
+ * Mean and covariance of gmm components are estimated
+ * from #NUM_INIT_SAMPLES random samples in the observed data.
+ *
+ * @param[out] model the HMM model to be re-estimated.
+ * @param data a set of observed sequences.
+ * @param nos number of sequences.
+ */
+void random_init(hmmgmm_t* model, seq_t** data, size_t nos);
+
+/**
  * Re-estimate the model parameters using Baum-Welch algorithm.
+ * The iteration will stop when the improvment of the
+ * log likelihood is smaller than #BW_STOP_THRESHOLD.
  *
  * @param[in,out] model the HMM model to be re-estimated.
  * @param data a set of observed sequences.

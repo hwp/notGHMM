@@ -164,6 +164,7 @@ int main(int argc, char** argv) {
   for (i = 0; i < nos; i++) {
     seq_free(data[i]);
   }
+  free(data);
   gsl_matrix_free(alpha);
   gsl_matrix_free(logalpha);
   gsl_matrix_free(logalpha2);

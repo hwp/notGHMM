@@ -9,13 +9,14 @@
 
 #include <stdlib.h>
 #include <math.h>
-#include <time.h>
 #include <assert.h>
 
 #include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
 #include <gsl/gsl_blas.h>
 
 #define BW_STOP_THRESHOLD 0.1
+#define NUM_INIT_SAMPLES 5
 
 seq_t* seq_alloc(size_t size, size_t dim) {
   size_t i;
@@ -202,7 +203,6 @@ seq_t* seq_gen(const hmmgmm_t* model, size_t size) {
   assert(seq);
 
   gsl_rng* rng = gsl_rng_alloc(gsl_rng_default);
-  gsl_rng_set(rng, time(NULL));
 
   size_t q, t;
   for (t = 0; t < size; t++) {
@@ -406,6 +406,73 @@ double viterbi_log(const hmmgmm_t* model, const seq_t* seq,
   return m;
 }
 
+void random_init(hmmgmm_t* model, seq_t** data, size_t nos) {
+  size_t i, j, k;
+  double p, sum;
+  gsl_rng* rng = gsl_rng_alloc(gsl_rng_default);
+  
+  sum = 0.0;
+  for (i = 0; i < model->n; i++) {
+    p = 0.75 + 0.5 * gsl_rng_uniform(rng);
+    gsl_vector_set(model->pi, i, p);
+    sum += p;
+  }
+  gsl_vector_scale(model->pi, 1.0 / sum);
+
+  for (j = 0; j < model->n; j++) {
+    gsl_vector_view v = gsl_matrix_row(model->a, j);
+    sum = 0.0;
+    for (i = 0; i < model->n; i++) {
+      p = 0.75 + 0.5 * gsl_rng_uniform(rng);
+      gsl_vector_set(&v.vector, i, p);
+      sum += p;
+    }
+    gsl_vector_scale(&v.vector, 1.0 / sum);
+  }
+
+  for (j = 0; j < model->n; j++) {
+    gsl_vector* v = model->states[j]->weight;
+    sum = 0.0;
+    for (i = 0; i < model->k; i++) {
+      p = 0.75 + 0.5 * gsl_rng_uniform(rng);
+      gsl_vector_set(v, i, p);
+      sum += p;
+    }
+    gsl_vector_scale(v, 1.0 / sum);
+  }
+
+  gsl_vector* samples[NUM_INIT_SAMPLES];
+  gsl_vector* dx = gsl_vector_alloc(model->dim);
+  
+  for (j = 0; j < model->n; j++) {
+    for (i = 0; i < model->k; i++) {
+      size_t sid = (size_t) (nos * gsl_rng_uniform(rng));
+      seq_t* seq = data[sid];
+      gsl_ran_choose(rng, samples, NUM_INIT_SAMPLES,
+          seq->data, seq->size, sizeof(gsl_vector*));
+      
+      gsl_vector* mean = model->states[j]->comp[i]->mean;
+      gsl_vector_set_zero(mean);
+      gsl_matrix* cov = model->states[j]->comp[i]->cov;
+      gsl_matrix_set_zero(cov);
+
+      for (k = 0; k < NUM_INIT_SAMPLES; k++) {
+        gsl_vector_add(mean, samples[k]);
+      }
+      gsl_vector_scale(mean, 1.0 / NUM_INIT_SAMPLES);
+
+      for (k = 0; k < NUM_INIT_SAMPLES; k++) {
+        gsl_vector_memcpy(dx, samples[k]);
+        gsl_vector_sub(dx, mean);
+        gsl_blas_dger(1.0 / (NUM_INIT_SAMPLES - 1),
+            dx, dx, cov);
+      }
+    }
+  }
+
+  gsl_vector_free(dx);
+}
+
 void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
   hmmgmm_t* nmodel = hmmgmm_alloc(model->n, model->k,
       model->dim);
@@ -519,6 +586,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
 
               gsl_vector_memcpy(mean, data[s]->data[t]);
               gsl_vector_sub(mean, state->comp[j]->mean);
+              // TODO cov
               gsl_matrix_set_zero(cov);
               gsl_blas_dger(gsl_vector_get(cgamma, j), mean, mean, cov);
               gsl_matrix_add(nstate->comp[j]->cov, cov);
