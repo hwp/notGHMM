@@ -20,8 +20,8 @@ int main(int argc, char** argv) {
   hmmgmm_t* model = hmmgmm_fscan(in);;
 
   size_t i;
-  size_t size = 100;
-  size_t nos = 100;
+  size_t size = 1000;
+  size_t nos = 10000;
   seq_t** data = calloc(nos, sizeof(seq_t*));
   for (i = 0; i < nos; i++) {
     data[i] = seq_gen(model, size);
@@ -58,7 +58,8 @@ int main(int argc, char** argv) {
     pr += hmm_log_likelihood(logalpha);
   }
 
-  printf("\n P = %g, %g, %g\n", po, pn, pr);
+  printf("\n log(P) =\n\t%g (original)\n\t%g (random "
+      "init)\n\t%g (re-estimated)\n", po, pn, pr);
 
   hmmgmm_free(model);
   hmmgmm_free(model2);
