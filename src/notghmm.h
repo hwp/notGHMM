@@ -144,6 +144,7 @@ hmmgmm_t* hmmgmm_fscan(FILE* stream);
 /**
  * Generate a sequence of observed data according to a HMM model.
  *
+ * @param rng the GSL random number generator.
  * @param model the HMM model.
  * @param size length of the sequence.
  *
@@ -151,7 +152,8 @@ hmmgmm_t* hmmgmm_fscan(FILE* stream);
  *
  * @warning the returned sequence must be freed after use.
  */
-seq_t* seq_gen(const hmmgmm_t* model, size_t size);
+seq_t* seq_gen(const gsl_rng* rng, const hmmgmm_t* model,
+    size_t size);
 
 /**
  * Forward procedure.

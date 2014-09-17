@@ -14,25 +14,28 @@
 
 int main(int argc, char** argv) {
   gsl_rng_env_setup();
+  gsl_rng* rng = gsl_rng_alloc(gsl_rng_default);
 
   FILE* in = fopen(argv[1], "r");
   assert(in);
   hmmgmm_t* model = hmmgmm_fscan(in);;
+  fclose(in);
+
+  printf("\n================\nModel 1\n");
+  hmmgmm_fprint(stdout, model);
 
   size_t i;
-  size_t size = 1000;
-  size_t nos = 10000;
+  size_t size = 100;
+  size_t nos = 100;
   seq_t** data = calloc(nos, sizeof(seq_t*));
   for (i = 0; i < nos; i++) {
-    data[i] = seq_gen(model, size);
+    data[i] = seq_gen(rng, model, size);
   }
   
   hmmgmm_t* model2 = hmmgmm_alloc(model->n, model->k,
       model->dim);
   random_init(model2, data, nos);
 
-  printf("\n================\nModel 1\n");
-  hmmgmm_fprint(stdout, model);
   printf("\n================\nModel 2\n");
   hmmgmm_fprint(stdout, model2);
 

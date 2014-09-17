@@ -198,11 +198,10 @@ hmmgmm_t* hmmgmm_fscan(FILE* stream) {
   return model;
 }
 
-seq_t* seq_gen(const hmmgmm_t* model, size_t size) {
+seq_t* seq_gen(const gsl_rng* rng, const hmmgmm_t* model,
+    size_t size) {
   seq_t* seq = seq_alloc(size, model->dim);
   assert(seq);
-
-  gsl_rng* rng = gsl_rng_alloc(gsl_rng_default);
 
   size_t q, t;
   for (t = 0; t < size; t++) {

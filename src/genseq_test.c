@@ -10,6 +10,9 @@
 #include <math.h>
 
 int main(int argc, char** argv) {
+  gsl_rng_env_setup();
+  gsl_rng* rng = gsl_rng_alloc(gsl_rng_default);
+
   hmmgmm_t* model = hmmgmm_alloc(2, 1, 2);
 
   gsl_vector_set(model->pi, 0, 1.0);
@@ -69,7 +72,7 @@ int main(int argc, char** argv) {
   gsl_matrix_set(state->comp[0]->cov, 1, 1, 1.0);
 
   size_t size = 1000;
-  seq_t* seq = seq_gen(model, size);
+  seq_t* seq = seq_gen(rng, model, size);
 
   gsl_matrix* alpha = gsl_matrix_alloc(size, model->n);
   forward_proc(model, seq, alpha);
@@ -133,7 +136,7 @@ int main(int argc, char** argv) {
   size_t nos = 100;
   seq_t** data = calloc(nos, sizeof(seq_t*));
   for (i = 0; i < nos; i++) {
-    data[i] = seq_gen(model, size);
+    data[i] = seq_gen(rng, model, size);
   }
   
   double po = 0.0;
