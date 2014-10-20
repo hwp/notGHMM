@@ -16,3 +16,10 @@ if(UNIX)
   target_link_libraries(bw_test m)
 endif(UNIX)
 
+add_library(notghmm SHARED notghmm.c utils.c)
+
+install(TARGETS notghmm
+  LIBRARY DESTINATION lib)
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  DESTINATION include FILES_MATCHING PATTERN "*.h")
+

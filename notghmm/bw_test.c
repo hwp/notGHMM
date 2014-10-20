@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
 
   size_t i;
   size_t size = 100;
-  size_t nos = 100;
+  size_t nos = 1000;
   seq_t** data = calloc(nos, sizeof(seq_t*));
   for (i = 0; i < nos; i++) {
     data[i] = seq_gen(rng, model, size);
