@@ -256,9 +256,9 @@ double max_index(gsl_vector* v, size_t* index) {
 void vector_fprint(FILE* stream, const gsl_vector* v) {
   size_t i;
   for (i = 0; i < v->size - 1; i++) {
-    fprintf(stream, "%.16g ", gsl_vector_get(v, i));
+    fprintf(stream, "%g ", gsl_vector_get(v, i));
   }
-  fprintf(stream, "%.16g\n", gsl_vector_get(v, i));
+  fprintf(stream, "%g\n", gsl_vector_get(v, i));
 }
 
 void vector_fscan(FILE* stream, gsl_vector* v) {
@@ -273,9 +273,9 @@ void matrix_fprint(FILE* stream, const gsl_matrix* m) {
   size_t i, j;
   for (i = 0; i < m->size1; i++) {
     for (j = 0; j < m->size2 - 1; j++) {
-      fprintf(stream, "%.16g ", gsl_matrix_get(m, i, j));
+      fprintf(stream, "%g ", gsl_matrix_get(m, i, j));
     }
-    fprintf(stream, "%.16g\n", gsl_matrix_get(m, i, j));
+    fprintf(stream, "%g\n", gsl_matrix_get(m, i, j));
   }
 }
 

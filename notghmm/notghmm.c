@@ -212,6 +212,51 @@ hmmgmm_t* hmmgmm_fscan(FILE* stream) {
   return model;
 }
 
+void hmmgmm_fwrite(FILE* stream, const hmmgmm_t* model) {
+  size_t n = model->n;
+  size_t k = model->k;
+  size_t dim = model->dim;
+  fwrite(&n, sizeof(size_t), 1, stream);
+  fwrite(&k, sizeof(size_t), 1, stream);
+  fwrite(&dim, sizeof(size_t), 1, stream);
+  gsl_vector_fwrite(stream, model->pi);
+  gsl_matrix_fwrite(stream, model->a);
+  size_t i, j;
+  for (i = 0; i < model->n; i++) {
+    gmm_t* state = model->states[i];
+    gsl_vector_fwrite(stream, state->weight);
+
+    for (j = 0; j < model->k; j++) {
+      gsl_vector_fwrite(stream, state->comp[j]->mean);
+      gsl_matrix_fwrite(stream, state->comp[j]->cov);
+    }
+  }
+}
+
+hmmgmm_t* hmmgmm_fread(FILE* stream) {
+  size_t n, k, dim;
+  fread(&n, sizeof(size_t), 1, stream);
+  fread(&k, sizeof(size_t), 1, stream);
+  fread(&dim, sizeof(size_t), 1, stream);
+
+  hmmgmm_t* model = hmmgmm_alloc(n, k, dim);
+
+  gsl_vector_fread(stream, model->pi);
+  gsl_matrix_fread(stream, model->a);
+  size_t i, j;
+  for (i = 0; i < model->n; i++) {
+    gmm_t* state = model->states[i];
+    gsl_vector_fread(stream, state->weight);
+
+    for (j = 0; j < model->k; j++) {
+      gsl_vector_fread(stream, state->comp[j]->mean);
+      gsl_matrix_fread(stream, state->comp[j]->cov);
+    }
+  }
+
+  return model;
+}
+
 seq_t* seq_gen(const gsl_rng* rng, const hmmgmm_t* model,
     size_t size) {
   seq_t* seq = seq_alloc(size, model->dim);
