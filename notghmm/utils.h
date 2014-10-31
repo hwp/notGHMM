@@ -150,9 +150,9 @@ size_t discrete_gen(const gsl_rng *rng, const gsl_vector* dist);
  * @param dist the Gaussian distribution.
  * @param x variable.
  *
- * @return pdf
+ * @return log pdf
  */
-double gaussian_pdf(const gaussian_t* dist,
+double gaussian_pdf_log(const gaussian_t* dist,
     const gsl_vector* x);
 
 /**
@@ -173,9 +173,9 @@ void gaussian_gen(const gsl_rng* rng, const gaussian_t* dist,
  * @param gmm the Gaussian mixture model.
  * @param x variable.
  *
- * @return pdf
+ * @return log pdf
  */
-double gmm_pdf(const gmm_t* gmm, const gsl_vector* x);
+double gmm_pdf_log(const gmm_t* gmm, const gsl_vector* x);
 
 /**
  * Generate a random sample consistent to a Gaussian

@@ -283,14 +283,14 @@ void forward_proc(const hmmgmm_t* model, const seq_t* seq,
 
   for (i = 0; i < model->n; i++) {
     gsl_matrix_set(alpha, 0, i, gsl_vector_get(model->pi, i)
-        * gmm_pdf(model->states[i], seq->data[0]));
+        * exp(gmm_pdf_log(model->states[i], seq->data[0])));
   }
 
   gsl_vector* b = gsl_vector_alloc(model->n);
   for (t = 1; t < seq->size; t++) {
     for (i = 0; i < b->size; i++) {
       gsl_vector_set(b, i,
-          gmm_pdf(model->states[i], seq->data[t]));
+          exp(gmm_pdf_log(model->states[i], seq->data[t])));
     }
 
     gsl_vector_view p = gsl_matrix_row(alpha, t - 1);
@@ -317,7 +317,7 @@ void forward_proc_log(const hmmgmm_t* model,
   for (i = 0; i < model->n; i++) {
     gsl_matrix_set(logalpha, 0, i,
         log(gsl_vector_get(model->pi, i))
-        + log(gmm_pdf(model->states[i], seq->data[0])));
+        + gmm_pdf_log(model->states[i], seq->data[0]));
   }
 
   gsl_vector* v = gsl_vector_alloc(model->n);
@@ -331,7 +331,7 @@ void forward_proc_log(const hmmgmm_t* model,
       gsl_vector_view a = gsl_matrix_column(loga, i);
       gsl_vector_add(v, &a.vector);
       gsl_vector_set(&n.vector, i, log_sum_exp(v)
-          + log(gmm_pdf(model->states[i], seq->data[t])));
+          + gmm_pdf_log(model->states[i], seq->data[t]));
     }
   }
 
@@ -357,7 +357,7 @@ void backward_proc(const hmmgmm_t* model, const seq_t* seq,
   for (t = seq->size - 1; t > 0; t--) {
     for (i = 0; i < model->n; i++) {
       gsl_vector_set(b, i,
-          gmm_pdf(model->states[i], seq->data[t]));
+          exp(gmm_pdf_log(model->states[i], seq->data[t])));
     }
 
     gsl_vector_view p = gsl_matrix_row(beta, t);
@@ -389,8 +389,8 @@ void backward_proc_log(const hmmgmm_t* model,
   gsl_vector* v = gsl_vector_alloc(model->n);
   for (t = seq->size - 1; t > 0 ; t--) {
     for (i = 0; i < model->n; i++) {
-      gsl_vector_set(b, i, log(gmm_pdf(model->states[i],
-              seq->data[t])));
+      gsl_vector_set(b, i, gmm_pdf_log(model->states[i],
+              seq->data[t]));
     }
 
     gsl_vector_view p = gsl_matrix_row(logbeta, t);
@@ -427,7 +427,7 @@ double viterbi_log(const hmmgmm_t* model, const seq_t* seq,
   for (i = 0; i < model->n; i++) {
     gsl_vector_set(logp, i,
         log(gsl_vector_get(model->pi, i))
-        + log(gmm_pdf(model->states[i], seq->data[0])));
+        + gmm_pdf_log(model->states[i], seq->data[0]));
   }
 
   size_t* track = calloc((seq->size - 1) * model->n,
@@ -442,8 +442,8 @@ double viterbi_log(const hmmgmm_t* model, const seq_t* seq,
       gsl_vector_view a = gsl_matrix_column(loga, i);
       gsl_vector_add(w, &a.vector);
       m = max_index(w, track + (t - 1) * model->n + i);
-      gsl_vector_set(logp, i, m + log(gmm_pdf(model->states[i],
-              seq->data[t])));
+      gsl_vector_set(logp, i, m 
+          + gmm_pdf_log(model->states[i], seq->data[t]));
     }
   }
 
@@ -601,8 +601,8 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
         if (t < data[s]->size - 1) {
           // Caculate xi
           for (j = 0; j < model->n; j++) {
-            double logb = log(gmm_pdf(model->states[j],
-                  data[s]->data[t + 1]));
+            double logb = gmm_pdf_log(model->states[j],
+                  data[s]->data[t + 1]);
             for (i = 0; i < model->n; i++) {
               gsl_matrix_set(xi, i, j, exp(
                     gsl_matrix_get(logalpha, t, i)
@@ -624,7 +624,9 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
           for (j = 0; j < model->k; j++) {
             gsl_vector_set(cgamma, j, 
                 gsl_vector_get(state->weight, j)
-                * gaussian_pdf(state->comp[j], data[s]->data[t]));
+                * exp(gaussian_pdf_log(state->comp[j],
+                    data[s]->data[t])));
+            // TODO: it seems that here still has possiblitiy of underflow!
           }
 
           double sum = gsl_blas_dasum(cgamma);

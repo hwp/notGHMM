@@ -146,7 +146,7 @@ size_t discrete_gen(const gsl_rng* rng, const gsl_vector* dist) {
   return i;
 }
 
-double gaussian_pdf(const gaussian_t* dist,
+double gaussian_pdf_log(const gaussian_t* dist,
     const gsl_vector* x) {
   double r = 0.0;
   int signum;
@@ -165,7 +165,11 @@ double gaussian_pdf(const gaussian_t* dist,
   gsl_blas_ddot(w1, w2, &r);
   double det = gsl_linalg_LU_det(v, signum);
 
+  /* Use log to avoid underflow !
   r = exp(-.5 * r) / sqrt(pow(2 * M_PI, dist->dim) * det);
+  */
+  r = r + dist->dim * log(2 * M_PI) + log(det);
+  r = -0.5 * r;
 
   gsl_vector_free(w1);
   gsl_vector_free(w2);
@@ -193,15 +197,15 @@ void gaussian_gen(const gsl_rng* rng, const gaussian_t* dist,
   gsl_matrix_free(v);
 }
 
-double gmm_pdf(const gmm_t* gmm, const gsl_vector* x) {
+double gmm_pdf_log(const gmm_t* gmm, const gsl_vector* x) {
   gsl_vector* p = gsl_vector_alloc(gmm->k);
   size_t i;
   for (i = 0; i < p->size; i++) {
-    gsl_vector_set(p, i, gaussian_pdf(gmm->comp[i], x));
+    gsl_vector_set(p, i, log(gsl_vector_get(gmm->weight, i))
+        + gaussian_pdf_log(gmm->comp[i], x));
   }
 
-  double result;
-  gsl_blas_ddot(p, gmm->weight, &result);
+  double result = log_sum_exp(p);
 
   gsl_vector_free(p);
   return result;
