@@ -181,16 +181,16 @@ hmmgmm_t* hmmgmm_fread(FILE* stream);
 /**
  * Generate a sequence of observed data according to a HMM model.
  *
- * @param rng the GSL random number generator.
  * @param model the HMM model.
  * @param size length of the sequence.
+ * @param rng the GSL random number generator.
  *
  * @return the generated sequence.
  *
  * @warning the returned sequence must be freed after use.
  */
-seq_t* seq_gen(const gsl_rng* rng, const hmmgmm_t* model,
-    size_t size);
+seq_t* seq_gen(const hmmgmm_t* model, size_t size,
+    const gsl_rng* rng);
 
 /**
  * Forward procedure.
@@ -315,8 +315,10 @@ double viterbi_log(const hmmgmm_t* model, const seq_t* seq,
  * @param[out] model the HMM model to be re-estimated.
  * @param data a set of observed sequences.
  * @param nos number of sequences.
+ * @param rng the GSL random number generator.
  */
-void random_init(hmmgmm_t* model, seq_t** data, size_t nos);
+void random_init(hmmgmm_t* model, seq_t** data, size_t nos,
+    gsl_rng* rng);
 
 /**
  * Re-estimate the model parameters using Baum-Welch algorithm.

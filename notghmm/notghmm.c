@@ -257,8 +257,8 @@ hmmgmm_t* hmmgmm_fread(FILE* stream) {
   return model;
 }
 
-seq_t* seq_gen(const gsl_rng* rng, const hmmgmm_t* model,
-    size_t size) {
+seq_t* seq_gen(const hmmgmm_t* model, size_t size,
+    const gsl_rng* rng) {
   seq_t* seq = seq_alloc(size, model->dim);
   assert(seq);
 
@@ -464,10 +464,10 @@ double viterbi_log(const hmmgmm_t* model, const seq_t* seq,
   return m;
 }
 
-void random_init(hmmgmm_t* model, seq_t** data, size_t nos) {
+void random_init(hmmgmm_t* model, seq_t** data, size_t nos,
+    gsl_rng* rng) {
   size_t i, j, k;
   double p, sum;
-  gsl_rng* rng = gsl_rng_alloc(gsl_rng_default);
   
   sum = 0.0;
   for (i = 0; i < model->n; i++) {
@@ -687,7 +687,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
             gsl_matrix_scale(state->comp[j]->cov, 1.0 / scale);
           }
           else {
-            fprintf(stderr, "Warning: state %ld, component %ld "
+            fprintf(stderr, "Warning: state %lu, component %lu "
                 "not visited\n", i, j);
             // Copy from original model
             gaussian_memcpy(state->comp[j],
@@ -696,8 +696,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
         }
       }
       else {
-        fprintf(stderr, "Warning: state %ld, component %ld "
-            "not visited\n", i, j);
+        fprintf(stderr, "Warning: state %lu not visited\n", i);
         // Copy from original model
         gsl_vector_view vo = gsl_matrix_row(model->a, i);
         gsl_vector_memcpy(&v.vector, &vo.vector);
