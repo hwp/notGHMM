@@ -283,14 +283,14 @@ void forward_proc(const hmmgmm_t* model, const seq_t* seq,
 
   for (i = 0; i < model->n; i++) {
     gsl_matrix_set(alpha, 0, i, gsl_vector_get(model->pi, i)
-        * exp(gmm_pdf_log(model->states[i], seq->data[0])));
+        * DEBUG_EXP(gmm_pdf_log(model->states[i], seq->data[0])));
   }
 
   gsl_vector* b = gsl_vector_alloc(model->n);
   for (t = 1; t < seq->size; t++) {
     for (i = 0; i < b->size; i++) {
       gsl_vector_set(b, i,
-          exp(gmm_pdf_log(model->states[i], seq->data[t])));
+          DEBUG_EXP(gmm_pdf_log(model->states[i], seq->data[t])));
     }
 
     gsl_vector_view p = gsl_matrix_row(alpha, t - 1);
@@ -310,13 +310,13 @@ void forward_proc_log(const hmmgmm_t* model,
   for (i = 0; i < model->n; i++) {
     for (j = 0; j < model->n; j++) {
       gsl_matrix_set(loga, i, j,
-          log(gsl_matrix_get(model->a, i, j)));
+          DEBUG_LOG(gsl_matrix_get(model->a, i, j)));
     }
   }
 
   for (i = 0; i < model->n; i++) {
     gsl_matrix_set(logalpha, 0, i,
-        log(gsl_vector_get(model->pi, i))
+        DEBUG_LOG(gsl_vector_get(model->pi, i))
         + gmm_pdf_log(model->states[i], seq->data[0]));
   }
 
@@ -357,7 +357,7 @@ void backward_proc(const hmmgmm_t* model, const seq_t* seq,
   for (t = seq->size - 1; t > 0; t--) {
     for (i = 0; i < model->n; i++) {
       gsl_vector_set(b, i,
-          exp(gmm_pdf_log(model->states[i], seq->data[t])));
+          DEBUG_EXP(gmm_pdf_log(model->states[i], seq->data[t])));
     }
 
     gsl_vector_view p = gsl_matrix_row(beta, t);
@@ -377,7 +377,7 @@ void backward_proc_log(const hmmgmm_t* model,
   for (i = 0; i < model->n; i++) {
     for (j = 0; j < model->n; j++) {
       gsl_matrix_set(loga, i, j,
-          log(gsl_matrix_get(model->a, i, j)));
+          DEBUG_LOG(gsl_matrix_get(model->a, i, j)));
     }
   }
 
@@ -419,14 +419,14 @@ double viterbi_log(const hmmgmm_t* model, const seq_t* seq,
   for (i = 0; i < model->n; i++) {
     for (j = 0; j < model->n; j++) {
       gsl_matrix_set(loga, i, j,
-          log(gsl_matrix_get(model->a, i, j)));
+          DEBUG_LOG(gsl_matrix_get(model->a, i, j)));
     }
   }
 
   gsl_vector* logp = gsl_vector_alloc(model->n);
   for (i = 0; i < model->n; i++) {
     gsl_vector_set(logp, i,
-        log(gsl_vector_get(model->pi, i))
+        DEBUG_LOG(gsl_vector_get(model->pi, i))
         + gmm_pdf_log(model->states[i], seq->data[0]));
   }
 
@@ -566,7 +566,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
     for (i = 0; i < model->n; i++) {
       for (j = 0; j < model->n; j++) {
         gsl_matrix_set(loga, i, j,
-            log(gsl_matrix_get(model->a, i, j)));
+            DEBUG_LOG(gsl_matrix_get(model->a, i, j)));
       }
     }
 
@@ -588,7 +588,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
       for (t = 0; t < data[s]->size; t++) {
         for (i = 0; i < model->n; i++) {
           // Calculate gamma
-          gsl_vector_set(gamma, i, exp(
+          gsl_vector_set(gamma, i, DEBUG_EXP(
                 gsl_matrix_get(logalpha, t, i)
                 + gsl_matrix_get(logbeta, t, i) - logpo));
         }
@@ -604,7 +604,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
             double logb = gmm_pdf_log(model->states[j],
                   data[s]->data[t + 1]);
             for (i = 0; i < model->n; i++) {
-              gsl_matrix_set(xi, i, j, exp(
+              gsl_matrix_set(xi, i, j, DEBUG_EXP(
                     gsl_matrix_get(logalpha, t, i)
                     + gsl_matrix_get(loga, i, j)
                     + gsl_matrix_get(logbeta, t + 1, j)
@@ -624,7 +624,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
           for (j = 0; j < model->k; j++) {
             gsl_vector_set(cgamma, j, 
                 gsl_vector_get(state->weight, j)
-                * exp(gaussian_pdf_log(state->comp[j],
+                * DEBUG_EXP(gaussian_pdf_log(state->comp[j],
                     data[s]->data[t])));
             // TODO: it seems that here still has possiblitiy of underflow!
           }
@@ -676,8 +676,13 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
         gmm_t* state = nmodel->states[i];
 
         // Normalize weight, sum = 1
+        double wnorm = gsl_blas_dasum(state->weight);
+        if (wnorm == 0 || isnan(wnorm) || isinf(wnorm)) {
+            fprintf(stderr, "Warning: Abnormal norm of weight = %g\n", wnorm);
+        }
+
         gsl_vector_scale(state->weight, 
-            1.0 / gsl_blas_dasum(state->weight));
+            1.0 / wnorm);
 
         for (j = 0; j < model->k; j++) {
           scale = gsl_matrix_get(scgamma, i, j);

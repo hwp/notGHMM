@@ -20,8 +20,12 @@
 
 #include "utils.h"
 
+#include <stdio.h>
 #include <math.h>
+#include <fenv.h>
 #include <assert.h>
+#include <errno.h>
+#include <string.h>
 
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
@@ -168,8 +172,14 @@ double gaussian_pdf_log(const gaussian_t* dist,
   /* Use log to avoid underflow !
   r = exp(-.5 * r) / sqrt(pow(2 * M_PI, dist->dim) * det);
   */
-  r = r + dist->dim * log(2 * M_PI) + log(det);
+  r = r + dist->dim * DEBUG_LOG(2 * M_PI) + DEBUG_LOG(det);
   r = -0.5 * r;
+
+  if (isnan(r)) {
+    fprintf(stderr, "Error (%s:%d): pdf value is not a "
+        "number\n", __FILE__, __LINE__);
+    exit(2);
+  }
 
   gsl_vector_free(w1);
   gsl_vector_free(w2);
@@ -201,7 +211,7 @@ double gmm_pdf_log(const gmm_t* gmm, const gsl_vector* x) {
   gsl_vector* p = gsl_vector_alloc(gmm->k);
   size_t i;
   for (i = 0; i < p->size; i++) {
-    gsl_vector_set(p, i, log(gsl_vector_get(gmm->weight, i))
+    gsl_vector_set(p, i, DEBUG_LOG(gsl_vector_get(gmm->weight, i))
         + gaussian_pdf_log(gmm->comp[i], x));
   }
 
@@ -219,24 +229,44 @@ void gmm_gen(const gsl_rng* rng, const gmm_t* gmm,
 
 double log_sum_exp(const gsl_vector* v) {
   double m = -gsl_vector_max(v);
-  if (m == HUGE_VAL) {
-    return -HUGE_VAL;
+  if (isinf(m)) {
+    // m = +inf OR -inf
+    // both cases the result should be equal to m
+    return m;
+  }
+  else if(isnan(m)) {
+    fprintf(stderr, "Error (%s:%d): max value is not a "
+        "number\n", __FILE__, __LINE__);
+    exit(2);
   }
 
   gsl_vector* w = gsl_vector_alloc(v->size);
   gsl_vector_memcpy(w, v);
   gsl_vector_add_constant(w, m);
 
-
   double s = 0.0;
   size_t i;
   for (i = 0; i < w->size; i++) {
-    s += exp(gsl_vector_get(w, i));
+    s += DEBUG_EXP(gsl_vector_get(w, i));
   }
 
   gsl_vector_free(w);
 
-  return -m + log(s);
+  return -m + DEBUG_LOG(s);
+}
+
+double math_func_fe_except(double (*func)(double),
+    double x) {
+  errno = 0;
+  feclearexcept(FE_ALL_EXCEPT);
+  double r = func(x);
+  if (fetestexcept(FE_INVALID | FE_DIVBYZERO 
+        | FE_OVERFLOW /* | FE_UNDERFLOW */)) {
+    fprintf(stderr, "Warning (%s:%d): FE Exception catched, "
+        "func(%g) = %g, %s\n" , __FILE__, __LINE__,
+        x, r, strerror(errno));
+  }
+  return r;
 }
 
 double max_index(gsl_vector* v, size_t* index) {

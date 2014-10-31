@@ -204,6 +204,16 @@ void gmm_gen(const gsl_rng* rng, const gmm_t* gmm,
 double log_sum_exp(const gsl_vector* v);
 
 /**
+ * math function call with exception report.
+ */
+double math_func_fe_except(double (*func)(double),
+    double x);
+
+#define DEBUG_LOG(x) math_func_fe_except(log, x)
+#define DEBUG_EXP(x) math_func_fe_except(exp, x)
+#define DEBUG_SQRT(x) math_func_fe_except(sqrt, x)
+
+/**
  * Find the maximum value and its index from a vector.
  *
  * @param v the vector.
