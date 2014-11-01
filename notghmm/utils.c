@@ -229,15 +229,11 @@ void gmm_gen(const gsl_rng* rng, const gmm_t* gmm,
 
 double log_sum_exp(const gsl_vector* v) {
   double m = -gsl_vector_max(v);
+  assert(!isnan(m));
   if (isinf(m)) {
     // m = +inf OR -inf
     // both cases the result should be equal to m
     return m;
-  }
-  else if(isnan(m)) {
-    fprintf(stderr, "Error (%s:%d): max value is not a "
-        "number\n", __FILE__, __LINE__);
-    exit(2);
   }
 
   gsl_vector* w = gsl_vector_alloc(v->size);
@@ -256,14 +252,15 @@ double log_sum_exp(const gsl_vector* v) {
 }
 
 double math_func_fe_except(double (*func)(double),
-    double x) {
+    double x, const char* func_name, const char* file,
+    unsigned int line) {
   errno = 0;
   feclearexcept(FE_ALL_EXCEPT);
   double r = func(x);
   if (fetestexcept(FE_INVALID | FE_DIVBYZERO 
         | FE_OVERFLOW /* | FE_UNDERFLOW */)) {
     fprintf(stderr, "Warning (%s:%d): FE Exception catched, "
-        "func(%g) = %g, %s\n" , __FILE__, __LINE__,
+        "%s(%g) = %g, %s\n" , file, line, func_name,
         x, r, strerror(errno));
   }
   return r;

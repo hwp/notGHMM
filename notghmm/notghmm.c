@@ -30,7 +30,9 @@
 #include <gsl/gsl_blas.h>
 
 #define BW_STOP_THRESHOLD 0.1
-#define NUM_INIT_SAMPLES 5
+#define NUM_INIT_SAMPLES 20
+
+#define MORE_THAN_ZERO 1e-100
 
 seq_t* seq_alloc(size_t size, size_t dim) {
   size_t i;
@@ -630,8 +632,10 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
           }
 
           double sum = gsl_blas_dasum(cgamma);
-          if (sum > 0) {
+          assert(isfinite(sum));
+          if (sum > MORE_THAN_ZERO && isfinite(1.0 / sum)) {
             // Normalize
+            // TODO why do i need normalize here??
             gsl_vector_scale(cgamma, 
                 gsl_vector_get(gamma, i) / sum);
 
@@ -677,7 +681,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
 
         // Normalize weight, sum = 1
         double wnorm = gsl_blas_dasum(state->weight);
-        if (wnorm == 0 || isnan(wnorm) || isinf(wnorm)) {
+        if (wnorm == 0 || !isfinite(wnorm)) {
             fprintf(stderr, "Warning: Abnormal norm of weight = %g\n", wnorm);
         }
 
@@ -720,6 +724,8 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
     fprintf(stderr, "Iteration %d: log p = %g, "
         "difference = %g\n", iter, slogpo, slogpo - plogpo);
     iter++;
+
+    assert(slogpo > plogpo);
   } while (slogpo - plogpo > BW_STOP_THRESHOLD);
 
   hmmgmm_free(nmodel);
