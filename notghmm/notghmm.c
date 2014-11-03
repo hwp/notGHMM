@@ -33,6 +33,7 @@
 #define NUM_INIT_SAMPLES 20
 
 #define MORE_THAN_ZERO 1e-100
+#define MORE_THAN_ONE (1.00001)
 
 seq_t* seq_alloc(size_t size, size_t dim) {
   size_t i;
@@ -575,7 +576,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
     gsl_matrix_set_zero(scgamma);
 
     // Accumulate
-    for (s = 0; s < nos; s++) {
+    for (s = 0; s < nos; s++) { // for all sequences
       gsl_matrix* logalpha = gsl_matrix_alloc(data[s]->size,
           model->n);
       gsl_matrix* logbeta = gsl_matrix_alloc(data[s]->size,
@@ -585,15 +586,20 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
       backward_proc_log(model, data[s], logbeta);
 
       double logpo = hmm_log_likelihood(logalpha);
+      assert(isfinite(logpo));
       slogpo += logpo;
 
-      for (t = 0; t < data[s]->size; t++) {
+      for (t = 0; t < data[s]->size; t++) { // for all time
         for (i = 0; i < model->n; i++) {
           // Calculate gamma
-          gsl_vector_set(gamma, i, DEBUG_EXP(
-                gsl_matrix_get(logalpha, t, i)
-                + gsl_matrix_get(logbeta, t, i) - logpo));
+          double gi = DEBUG_EXP(-logpo
+              + gsl_matrix_get(logalpha, t, i)
+              + gsl_matrix_get(logbeta, t, i));
+          assert(gi >= 0.0 && gi <= MORE_THAN_ONE);
+          gsl_vector_set(gamma, i, gi);
         }
+        // is it necessary to normalize gamma ? 
+        // cause there is arithmetic error
 
         if (t == 0) {
           // Accumulate pi
@@ -604,7 +610,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
           // Caculate xi
           for (j = 0; j < model->n; j++) {
             double logb = gmm_pdf_log(model->states[j],
-                  data[s]->data[t + 1]);
+                data[s]->data[t + 1]);
             for (i = 0; i < model->n; i++) {
               gsl_matrix_set(xi, i, j, DEBUG_EXP(
                     gsl_matrix_get(logalpha, t, i)
@@ -615,10 +621,12 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
           }
 
           // Accumulate a
+          // Here we don't divide by gamma 
+          // because we will normalize (sum is 1) a later.
           gsl_matrix_add(nmodel->a, xi);
         }
 
-        for (i = 0; i < model->n; i++) {
+        for (i = 0; i < model->n; i++) { // go through all states
           gmm_t* state = model->states[i];
           gmm_t* nstate = nmodel->states[i];
 
@@ -628,14 +636,12 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
                 gsl_vector_get(state->weight, j)
                 * DEBUG_EXP(gaussian_pdf_log(state->comp[j],
                     data[s]->data[t])));
-            // TODO: it seems that here still has possiblitiy of underflow!
           }
 
           double sum = gsl_blas_dasum(cgamma);
           assert(isfinite(sum));
           if (sum > MORE_THAN_ZERO && isfinite(1.0 / sum)) {
-            // Normalize
-            // TODO why do i need normalize here??
+            // Normalize and multiply by gamma
             gsl_vector_scale(cgamma, 
                 gsl_vector_get(gamma, i) / sum);
 
@@ -657,12 +663,12 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
                 += gsl_vector_get(cgamma, j);
             }
           }
-        }
-      }
+        } // end for all states
+      } // end for all time
 
       gsl_matrix_free(logalpha);
       gsl_matrix_free(logbeta);
-    }
+    } // end for all sequences
 
     // Normalize
     // Normalize pi, sum = 1
@@ -674,7 +680,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
       // Normalize a, sum of each row = 1
       gsl_vector_view v = gsl_matrix_row(nmodel->a, i);
       scale = gsl_blas_dasum(&v.vector);
-      if (scale > 0) {
+      if (scale > MORE_THAN_ZERO && isfinite(1.0 / scale)) {
         gsl_vector_scale(&v.vector, 1.0 / scale);
 
         gmm_t* state = nmodel->states[i];
@@ -682,15 +688,14 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
         // Normalize weight, sum = 1
         double wnorm = gsl_blas_dasum(state->weight);
         if (wnorm == 0 || !isfinite(wnorm)) {
-            fprintf(stderr, "Warning: Abnormal norm of weight = %g\n", wnorm);
+          fprintf(stderr, "Warning: Abnormal norm of weight = %g\n", wnorm);
         }
-
         gsl_vector_scale(state->weight, 
             1.0 / wnorm);
 
         for (j = 0; j < model->k; j++) {
           scale = gsl_matrix_get(scgamma, i, j);
-          if (scale > 0) {
+          if (scale > MORE_THAN_ZERO && isfinite(1.0 / scale)) {
             // Normalize (rescale) mean
             gsl_vector_scale(state->comp[j]->mean, 1.0 / scale);
 
@@ -725,7 +730,10 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
         "difference = %g\n", iter, slogpo, slogpo - plogpo);
     iter++;
 
-    assert(slogpo > plogpo);
+    // assert(slogpo >= plogpo);
+    if (slogpo < plogpo) {
+      fprintf(stderr, "Warning: reestimation doesn't increase likelihood\n");
+    }
   } while (slogpo - plogpo > BW_STOP_THRESHOLD);
 
   hmmgmm_free(nmodel);
