@@ -167,19 +167,16 @@ double gaussian_pdf_log(const gaussian_t* dist,
   gsl_linalg_LU_decomp(v, p, &signum);
   gsl_linalg_LU_solve(v, p, w1, w2);
   gsl_blas_ddot(w1, w2, &r);
-  double det = gsl_linalg_LU_det(v, signum);
+  double logdet = gsl_linalg_LU_lndet(v);
+  assert(gsl_linalg_LU_sgndet(v, signum) == 1.0);
 
   /* Use log to avoid underflow !
   r = exp(-.5 * r) / sqrt(pow(2 * M_PI, dist->dim) * det);
   */
-  r = r + dist->dim * DEBUG_LOG(2 * M_PI) + DEBUG_LOG(det);
+  r = r + dist->dim * DEBUG_LOG(2 * M_PI) + logdet;
   r = -0.5 * r;
 
-  if (isnan(r)) {
-    fprintf(stderr, "Error (%s:%d): pdf value is not a "
-        "number\n", __FILE__, __LINE__);
-    exit(2);
-  }
+  assert(!isnan(r));
 
   gsl_vector_free(w1);
   gsl_vector_free(w2);
