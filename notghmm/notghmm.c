@@ -159,9 +159,9 @@ void hmmgmm_memcpy(hmmgmm_t* dest, const hmmgmm_t* src) {
 
 void hmmgmm_fprint(FILE* stream, const hmmgmm_t* model) {
   fprintf(stream, "HMM Parameters\n");
-  fprintf(stream, "N = %lu\n", model->n);
-  fprintf(stream, "K = %lu\n", model->k);
-  fprintf(stream, "d = %lu\n", model->dim);
+  fprintf(stream, "N = %zu\n", model->n);
+  fprintf(stream, "K = %zu\n", model->k);
+  fprintf(stream, "d = %zu\n", model->dim);
   fprintf(stream, "pi = ");
   vector_fprint(stream, model->pi);
   fprintf(stream, "a = \n");
@@ -169,12 +169,12 @@ void hmmgmm_fprint(FILE* stream, const hmmgmm_t* model) {
   size_t i, j;
   for (i = 0; i < model->n; i++) {
     gmm_t* state = model->states[i];
-    fprintf(stream, "\nState %lu\n", i);
+    fprintf(stream, "\nState %zu\n", i);
     fprintf(stream, "weight = ");
     vector_fprint(stream, state->weight);
 
     for (j = 0; j < model->k; j++) {
-      fprintf(stream, "Component %lu\n", j);
+      fprintf(stream, "Component %zu\n", j);
       fprintf(stream, "mean = ");
       vector_fprint(stream, state->comp[j]->mean);
       fprintf(stream, "cov = \n");
@@ -186,9 +186,9 @@ void hmmgmm_fprint(FILE* stream, const hmmgmm_t* model) {
 hmmgmm_t* hmmgmm_fscan(FILE* stream) {
   size_t n, k, dim;
   fscanf(stream, "HMM Parameters\n");
-  fscanf(stream, "N = %lu\n", &n);
-  fscanf(stream, "K = %lu\n", &k);
-  fscanf(stream, "d = %lu\n", &dim);
+  fscanf(stream, "N = %zu\n", &n);
+  fscanf(stream, "K = %zu\n", &k);
+  fscanf(stream, "d = %zu\n", &dim);
 
   hmmgmm_t* model = hmmgmm_alloc(n, k, dim);
 
@@ -703,7 +703,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
             gsl_matrix_scale(state->comp[j]->cov, 1.0 / scale);
           }
           else {
-            fprintf(stderr, "Warning: state %lu, component %lu "
+            fprintf(stderr, "Warning: state %zu, component %zu "
                 "not visited\n", i, j);
             // Copy from original model
             gaussian_memcpy(state->comp[j],
@@ -712,7 +712,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
         }
       }
       else {
-        fprintf(stderr, "Warning: state %lu not visited\n", i);
+        fprintf(stderr, "Warning: state %zu not visited\n", i);
         // Copy from original model
         gsl_vector_view vo = gsl_matrix_row(model->a, i);
         gsl_vector_memcpy(&v.vector, &vo.vector);
