@@ -210,7 +210,7 @@ double math_func_fe_except(double (*func)(double),
     double x, const char* func_name, const char* file,
     unsigned int line);
 
-#define DEBUG_LOG(x) math_func_fe_except(log, x, "log", __FILE__, __LINE__)
+#define DEBUG_LOG(x) (x == 0.0 ? -HUGE_VAL : math_func_fe_except(log, x, "log", __FILE__, __LINE__))
 #define DEBUG_EXP(x) math_func_fe_except(exp, x, "exp", __FILE__, __LINE__)
 #define DEBUG_SQRT(x) math_func_fe_except(sqrt, x, "sqrt", __FILE__, __LINE__)
 
