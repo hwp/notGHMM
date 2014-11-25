@@ -34,8 +34,6 @@
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_linalg.h>
 
-#define SMALL_DIAGNAL_CORRECTION 1e-12
-
 gaussian_t* gaussian_alloc(size_t dim) {
   gaussian_t* r = malloc(sizeof(gaussian_t));
   if (r) {
@@ -154,7 +152,6 @@ size_t discrete_gen(const gsl_rng* rng, const gsl_vector* dist) {
 
 double gaussian_pdf_log(const gaussian_t* dist,
     const gsl_vector* x) {
-  size_t i;
   double r = 0.0;
   int signum;
 
@@ -165,9 +162,6 @@ double gaussian_pdf_log(const gaussian_t* dist,
 
   gsl_matrix* v = gsl_matrix_alloc(dist->dim, dist->dim);
   gsl_matrix_memcpy(v, dist->cov);
-  for (i = 0; i < dist->dim; i++) {
-    *gsl_matrix_ptr(v, i, i) += SMALL_DIAGNAL_CORRECTION;
-  }
   gsl_permutation* p = gsl_permutation_alloc(dist->dim);
 
   gsl_linalg_LU_decomp(v, p, &signum);

@@ -34,6 +34,7 @@
 
 #define MORE_THAN_ZERO 1e-100
 #define MORE_THAN_ONE (1.00001)
+#define SMALL_DIAGONAL_CORRECTION 1e-6
 
 seq_t* seq_alloc(size_t size, size_t dim) {
   size_t i;
@@ -528,6 +529,12 @@ void random_init(hmmgmm_t* model, seq_t** data, size_t nos,
         gsl_blas_dger(1.0 / (NUM_INIT_SAMPLES - 1),
             dx, dx, cov);
       }
+      
+      // Diagonal correction
+      for (k = 0; k < model->dim; k++) {
+        *gsl_matrix_ptr(cov, k, k) 
+          += SMALL_DIAGONAL_CORRECTION;
+      }
     }
   }
 
@@ -545,7 +552,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
   gsl_vector* mean = gsl_vector_alloc(model->dim);
   gsl_matrix* cov = gsl_matrix_alloc(model->dim, model->dim);
 
-  size_t i, j, s, t;
+  size_t i, j, k, s, t;
   double slogpo = -HUGE_VAL;
   double plogpo = -HUGE_VAL;
   int iter = 0;
@@ -701,6 +708,12 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
 
             // Normalize (rescale) cov
             gsl_matrix_scale(state->comp[j]->cov, 1.0 / scale);
+
+            // Diagonal correction
+            for (k = 0; k < model->dim; k++) {
+              *gsl_matrix_ptr(state->comp[j]->cov, k, k) 
+                += SMALL_DIAGONAL_CORRECTION;
+            }
           }
           else {
             fprintf(stderr, "Warning: state %zu, component %zu "
