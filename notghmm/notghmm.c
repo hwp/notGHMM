@@ -510,7 +510,7 @@ void random_init(hmmgmm_t* model, seq_t** data, size_t nos,
     for (i = 0; i < model->k; i++) {
       size_t sid = (size_t) (nos * gsl_rng_uniform(rng));
       seq_t* seq = data[sid];
-      gsl_ran_choose(rng, samples, NUM_INIT_SAMPLES,
+      gsl_ran_sample(rng, samples, NUM_INIT_SAMPLES,
           seq->data, seq->size, sizeof(gsl_vector*));
       
       gsl_vector* mean = model->states[j]->comp[i]->mean;
