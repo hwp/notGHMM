@@ -736,6 +736,9 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
     // Replace the original
     hmmgmm_memcpy(model, nmodel);
 
+    // Normalize slogp
+    slogpo /= (double) nos;
+
     // Here the log p is of the previous model
     // And the difference is calculated with 
     //   the previous previous model
