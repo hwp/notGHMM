@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
   gsl_rng_env_setup();
   gsl_rng* rng = gsl_rng_alloc(gsl_rng_default);
 
-  hmmgmm_t* model = hmmgmm_alloc(2, 1, 2);
+  hmmgmm_t* model = hmmgmm_alloc(2, 1, 2, 0);
 
   gsl_vector_set(model->pi, 0, 1.0);
   gsl_vector_set(model->pi, 1, 0.0);
@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
   gsl_matrix_set(state->comp[0]->cov, 1, 0, -1.0);
   gsl_matrix_set(state->comp[0]->cov, 1, 1, 2.0);
 
-  hmmgmm_t* model2 = hmmgmm_alloc(2, 1, 2);
+  hmmgmm_t* model2 = hmmgmm_alloc(2, 1, 2, 0);
 
   gsl_vector_set(model2->pi, 0, .5);
   gsl_vector_set(model2->pi, 1, .5);
@@ -74,17 +74,11 @@ int main(int argc, char** argv) {
   size_t size = 1000;
   seq_t* seq = seq_gen(model, size, rng);
 
-  gsl_matrix* alpha = gsl_matrix_alloc(size, model->n);
-  forward_proc(model, seq, alpha);
-
   gsl_matrix* logalpha = gsl_matrix_alloc(size, model->n);
   forward_proc_log(model, seq, logalpha);
 
   gsl_matrix* logalpha2 = gsl_matrix_alloc(size, model2->n);
   forward_proc_log(model2, seq, logalpha2);
-
-  gsl_matrix* beta = gsl_matrix_alloc(size, model->n);
-  backward_proc(model, seq, beta);
 
   gsl_matrix* logbeta = gsl_matrix_alloc(size, model->n);
   backward_proc_log(model, seq, logbeta);
@@ -94,17 +88,13 @@ int main(int argc, char** argv) {
 
   size_t i;
   for (i = 0; i < size; i++) {
-    printf("%g %g; %g %g; %g %g; %g %g; %g %g; %g %g\n",
+    printf("%g %g; %g %g; %g %g; %g %g\n",
         gsl_vector_get(seq->data[i], 0),
         gsl_vector_get(seq->data[i], 1),
-        log(gsl_matrix_get(alpha, i, 0)),
-        log(gsl_matrix_get(alpha, i, 1)),
         gsl_matrix_get(logalpha, i, 0),
         gsl_matrix_get(logalpha, i, 1),
         gsl_matrix_get(logalpha2, i, 0),
         gsl_matrix_get(logalpha2, i, 1),
-        log(gsl_matrix_get(beta, i, 0)),
-        log(gsl_matrix_get(beta, i, 1)),
         gsl_matrix_get(logbeta, i, 0),
         gsl_matrix_get(logbeta, i, 1));
   }
@@ -168,10 +158,8 @@ int main(int argc, char** argv) {
     seq_free(data[i]);
   }
   free(data);
-  gsl_matrix_free(alpha);
   gsl_matrix_free(logalpha);
   gsl_matrix_free(logalpha2);
-  gsl_matrix_free(beta);
   gsl_matrix_free(logbeta);
   free(hidden);
 

@@ -10,7 +10,7 @@
 #include <assert.h>
 
 int main(int argc, char** argv) {
-  hmmgmm_t* model = hmmgmm_alloc(2, 1, 2);
+  hmmgmm_t* model = hmmgmm_alloc(2, 1, 2, 0);
 
   gsl_vector_set(model->pi, 0, 1.0);
   gsl_vector_set(model->pi, 1, 0.0);
@@ -41,12 +41,12 @@ int main(int argc, char** argv) {
 
   FILE* out = fopen("hmm0", "w");
   assert(out);
-  hmmgmm_fprint(out, model);
+  hmmgmm_fwrite(out, model);
   fclose(out);
 
   FILE* in = fopen("hmm0", "r");
   assert(in);
-  hmmgmm_t* modelr = hmmgmm_fscan(in);
+  hmmgmm_t* modelr = hmmgmm_fread(in);
   fclose(in);
 
   hmmgmm_fprint(stdout, model);

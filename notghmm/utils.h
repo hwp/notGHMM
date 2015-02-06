@@ -43,6 +43,14 @@ typedef struct {
    * Covariance matrix.
    */
   gsl_matrix* cov;
+
+  /**
+   * Diagonal of the covariance matrix.
+   * @note either cov or diag is NULL.
+   *   if diag is not null, then the rest of the matrix is ignored,
+   *   that is, each dimension is considered to be independent of each other.
+   */
+  gsl_vector* diag;
 } gaussian_t;
 
 /**
@@ -73,14 +81,15 @@ typedef struct {
 /**
  * Allocate memory for a Gaussian distribution.
  * dim is set.
- * mean and cov are allocated but not initialized.
+ * mean and cov (or diag) are allocated but not initialized.
  *
  * @param dim number of dimension.
+ * @param cov_diag if non-zero, the covariance matrix is diagonal.
  *
  * @return pointer to the allocated space.
  *         NULL, if error occurs.
  */
-gaussian_t* gaussian_alloc(size_t dim);
+gaussian_t* gaussian_alloc(size_t dim, int cov_diag);
 
 /**
  * Free memory.
@@ -90,6 +99,12 @@ gaussian_t* gaussian_alloc(size_t dim);
  *    performed.
  */
 void gaussian_free(gaussian_t* dist);
+
+/**
+ * @return 1 if the distribution has diagonal covariance matrix,
+ *   0 otherwise.
+ */
+int gaussian_isdiagonal(const gaussian_t* dist);
 
 /**
  * Copy a Gaussian distribution into another.
@@ -107,11 +122,13 @@ void gaussian_memcpy(gaussian_t* dest, const gaussian_t* src);
  *
  * @param dim number of dimension.
  * @param k number of components.
+ * @param cov_diag if non-zero, the covariance matrices of the 
+ *    Gaussian distributions are diagonal.
  *
  * @return pointer to the allocated space.
  *         NULL, if error occurs.
  */
-gmm_t* gmm_alloc(size_t dim, size_t k);
+gmm_t* gmm_alloc(size_t dim, size_t k, int cov_diag);
 
 /**
  * Free memory.

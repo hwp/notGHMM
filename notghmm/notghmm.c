@@ -81,7 +81,7 @@ void seq_free(seq_t* seq) {
   }
 }
 
-hmmgmm_t* hmmgmm_alloc(size_t n, size_t k, size_t dim) {
+hmmgmm_t* hmmgmm_alloc(size_t n, size_t k, size_t dim, int cov_diag) {
   size_t i;
   int suc = 0;
 
@@ -90,11 +90,12 @@ hmmgmm_t* hmmgmm_alloc(size_t n, size_t k, size_t dim) {
     r->n = n;
     r->k = k;
     r->dim = dim;
+    r->cov_diag = cov_diag;
 
     r->states = calloc(n, sizeof(gmm_t*));
     if (r->states) {
       for (i = 0; i < n; i++) {
-        r->states[i] = gmm_alloc(dim, k);
+        r->states[i] = gmm_alloc(dim, k, cov_diag);
         if (!r->states[i]) {
           break;
         }
@@ -178,42 +179,16 @@ void hmmgmm_fprint(FILE* stream, const hmmgmm_t* model) {
       fprintf(stream, "Component %zu\n", j);
       fprintf(stream, "mean = ");
       vector_fprint(stream, state->comp[j]->mean);
-      fprintf(stream, "cov = \n");
-      matrix_fprint(stream, state->comp[j]->cov);
+      if (model->cov_diag) {
+        fprintf(stream, "cov (diag) = ");
+        vector_fprint(stream, state->comp[j]->diag);
+      }
+      else {
+        fprintf(stream, "cov = \n");
+        matrix_fprint(stream, state->comp[j]->cov);
+      }
     }
   }
-}
-
-hmmgmm_t* hmmgmm_fscan(FILE* stream) {
-  size_t n, k, dim;
-  fscanf(stream, "HMM Parameters\n");
-  fscanf(stream, "N = %zu\n", &n);
-  fscanf(stream, "K = %zu\n", &k);
-  fscanf(stream, "d = %zu\n", &dim);
-
-  hmmgmm_t* model = hmmgmm_alloc(n, k, dim);
-
-  fscanf(stream, "pi = ");
-  vector_fscan(stream, model->pi);
-  fscanf(stream, "a = \n");
-  matrix_fscan(stream, model->a);
-  size_t i, j;
-  for (i = 0; i < model->n; i++) {
-    gmm_t* state = model->states[i];
-    fscanf(stream, "\nState %*u\n");
-    fscanf(stream, "weight = ");
-    vector_fscan(stream, state->weight);
-
-    for (j = 0; j < model->k; j++) {
-      fscanf(stream, "Component %*u\n");
-      fscanf(stream, "mean = ");
-      vector_fscan(stream, state->comp[j]->mean);
-      fscanf(stream, "cov = \n");
-      matrix_fscan(stream, state->comp[j]->cov);
-    }
-  }
-
-  return model;
 }
 
 void hmmgmm_fwrite(FILE* stream, const hmmgmm_t* model) {
@@ -223,6 +198,8 @@ void hmmgmm_fwrite(FILE* stream, const hmmgmm_t* model) {
   fwrite(&n, sizeof(size_t), 1, stream);
   fwrite(&k, sizeof(size_t), 1, stream);
   fwrite(&dim, sizeof(size_t), 1, stream);
+  fwrite(&model->cov_diag, sizeof(int), 1, stream);
+
   gsl_vector_fwrite(stream, model->pi);
   gsl_matrix_fwrite(stream, model->a);
   size_t i, j;
@@ -232,18 +209,25 @@ void hmmgmm_fwrite(FILE* stream, const hmmgmm_t* model) {
 
     for (j = 0; j < model->k; j++) {
       gsl_vector_fwrite(stream, state->comp[j]->mean);
-      gsl_matrix_fwrite(stream, state->comp[j]->cov);
+      if (model->cov_diag) {
+        gsl_vector_fwrite(stream, state->comp[j]->diag);
+      }
+      else {
+        gsl_matrix_fwrite(stream, state->comp[j]->cov);
+      }
     }
   }
 }
 
 hmmgmm_t* hmmgmm_fread(FILE* stream) {
   size_t n, k, dim;
+  int cov_diag;
   fread(&n, sizeof(size_t), 1, stream);
   fread(&k, sizeof(size_t), 1, stream);
   fread(&dim, sizeof(size_t), 1, stream);
+  fread(&cov_diag, sizeof(int), 1, stream);
 
-  hmmgmm_t* model = hmmgmm_alloc(n, k, dim);
+  hmmgmm_t* model = hmmgmm_alloc(n, k, dim, cov_diag);
 
   gsl_vector_fread(stream, model->pi);
   gsl_matrix_fread(stream, model->a);
@@ -254,7 +238,12 @@ hmmgmm_t* hmmgmm_fread(FILE* stream) {
 
     for (j = 0; j < model->k; j++) {
       gsl_vector_fread(stream, state->comp[j]->mean);
-      gsl_matrix_fread(stream, state->comp[j]->cov);
+      if (model->cov_diag) {
+        gsl_vector_fread(stream, state->comp[j]->diag);
+      }
+      else {
+        gsl_matrix_fread(stream, state->comp[j]->cov);
+      }
     }
   }
 
@@ -279,31 +268,6 @@ seq_t* seq_gen(const hmmgmm_t* model, size_t size,
     gmm_gen(rng, model->states[q], seq->data[t]);
   }
   return seq;
-}
-
-void forward_proc(const hmmgmm_t* model, const seq_t* seq,
-    gsl_matrix* alpha) {
-  size_t i, t;
-
-  for (i = 0; i < model->n; i++) {
-    gsl_matrix_set(alpha, 0, i, gsl_vector_get(model->pi, i)
-        * DEBUG_EXP(gmm_pdf_log(model->states[i], seq->data[0])));
-  }
-
-  gsl_vector* b = gsl_vector_alloc(model->n);
-  for (t = 1; t < seq->size; t++) {
-    for (i = 0; i < b->size; i++) {
-      gsl_vector_set(b, i,
-          DEBUG_EXP(gmm_pdf_log(model->states[i], seq->data[t])));
-    }
-
-    gsl_vector_view p = gsl_matrix_row(alpha, t - 1);
-    gsl_vector_view n = gsl_matrix_row(alpha, t);
-    gsl_blas_dgemv(CblasTrans, 1.0, model->a, &p.vector,
-        0.0, &n.vector);
-    gsl_vector_mul(&n.vector, b);
-  }
-  gsl_vector_free(b);
 }
 
 void forward_proc_log(const hmmgmm_t* model,
@@ -347,30 +311,6 @@ double hmm_log_likelihood(const gsl_matrix* logalpha) {
   gsl_vector_const_view v = gsl_matrix_const_row(logalpha,
       logalpha->size1 - 1);
   return log_sum_exp(&v.vector);
-}
-
-void backward_proc(const hmmgmm_t* model, const seq_t* seq,
-    gsl_matrix* beta) {
-  size_t i, t;
-
-  for (i = 0; i < model->n; i++) {
-    gsl_matrix_set(beta, seq->size - 1, i, 1.0);
-  }
-
-  gsl_vector* b = gsl_vector_alloc(model->n);
-  for (t = seq->size - 1; t > 0; t--) {
-    for (i = 0; i < model->n; i++) {
-      gsl_vector_set(b, i,
-          DEBUG_EXP(gmm_pdf_log(model->states[i], seq->data[t])));
-    }
-
-    gsl_vector_view p = gsl_matrix_row(beta, t);
-    gsl_vector_view n = gsl_matrix_row(beta, t - 1);
-    gsl_vector_mul(b, &p.vector);
-    gsl_blas_dgemv(CblasNoTrans, 1.0, model->a, b, 0.0,
-        &n.vector);
-  }
-  gsl_vector_free(b);
 }
 
 void backward_proc_log(const hmmgmm_t* model,
@@ -514,9 +454,17 @@ void random_init(hmmgmm_t* model, seq_t** data, size_t nos,
           seq->data, seq->size, sizeof(gsl_vector*));
       
       gsl_vector* mean = model->states[j]->comp[i]->mean;
-      gsl_vector_set_zero(mean);
+      gsl_vector* diag = model->states[j]->comp[i]->diag;
       gsl_matrix* cov = model->states[j]->comp[i]->cov;
-      gsl_matrix_set_zero(cov);
+
+      gsl_vector_set_zero(mean);
+
+      if (model->cov_diag) {
+        gsl_vector_set_zero(diag);
+      }
+      else {
+        gsl_matrix_set_zero(cov);
+      }
 
       for (k = 0; k < NUM_INIT_SAMPLES; k++) {
         gsl_vector_add(mean, samples[k]);
@@ -526,14 +474,25 @@ void random_init(hmmgmm_t* model, seq_t** data, size_t nos,
       for (k = 0; k < NUM_INIT_SAMPLES; k++) {
         gsl_vector_memcpy(dx, samples[k]);
         gsl_vector_sub(dx, mean);
-        gsl_blas_dger(1.0 / (NUM_INIT_SAMPLES - 1),
-            dx, dx, cov);
+        if (model->cov_diag) {
+          gsl_vector_mul(dx, dx);
+          gsl_vector_scale(dx, 1.0 / (NUM_INIT_SAMPLES - 1));
+          gsl_vector_add(diag, dx);
+        }
+        else {
+          gsl_blas_dger(1.0 / (NUM_INIT_SAMPLES - 1),
+              dx, dx, cov);
+        }
       }
       
       // Diagonal correction
       for (k = 0; k < model->dim; k++) {
-        *gsl_matrix_ptr(cov, k, k) 
-          += SMALL_DIAGONAL_CORRECTION;
+        if (model->cov_diag) {
+          *gsl_vector_ptr(diag, k) += SMALL_DIAGONAL_CORRECTION;
+        }
+        else {
+          *gsl_matrix_ptr(cov, k, k) += SMALL_DIAGONAL_CORRECTION;
+        }
       }
     }
   }
@@ -543,14 +502,13 @@ void random_init(hmmgmm_t* model, seq_t** data, size_t nos,
 
 void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
   hmmgmm_t* nmodel = hmmgmm_alloc(model->n, model->k,
-      model->dim);
+      model->dim, model->cov_diag);
   gsl_vector* gamma = gsl_vector_alloc(model->n);
   gsl_vector* cgamma = gsl_vector_alloc(model->k);
   gsl_matrix* xi = gsl_matrix_alloc(model->n, model->n);
   gsl_matrix* loga = gsl_matrix_alloc(model->n, model->n);
   gsl_matrix* scgamma = gsl_matrix_alloc(model->n, model->k);
   gsl_vector* mean = gsl_vector_alloc(model->dim);
-  gsl_matrix* cov = gsl_matrix_alloc(model->dim, model->dim);
 
   size_t i, j, k, s, t;
   double slogpo = -HUGE_VAL;
@@ -569,7 +527,12 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
       gsl_vector_set_zero(state->weight);
       for (j = 0; j < nmodel->k; j++) {
         gsl_vector_set_zero(state->comp[j]->mean);
-        gsl_matrix_set_zero(state->comp[j]->cov);
+        if (model->cov_diag) {
+          gsl_vector_set_zero(state->comp[j]->diag);
+        }
+        else {
+          gsl_matrix_set_zero(state->comp[j]->cov);
+        }
       }
     }
 
@@ -663,9 +626,15 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
 
               gsl_vector_memcpy(mean, data[s]->data[t]);
               gsl_vector_sub(mean, state->comp[j]->mean);
-              gsl_blas_dger(gsl_vector_get(cgamma, j), mean,
-                  mean, nstate->comp[j]->cov);
-
+              if (model->cov_diag) {
+                gsl_vector_mul(mean, mean);
+                gsl_vector_scale(mean, gsl_vector_get(cgamma, j));
+                gsl_vector_add(nstate->comp[j]->diag, mean);
+              }
+              else {
+                gsl_blas_dger(gsl_vector_get(cgamma, j), mean,
+                    mean, nstate->comp[j]->cov);
+              }
               *gsl_matrix_ptr(scgamma, i, j) 
                 += gsl_vector_get(cgamma, j);
             }
@@ -707,12 +676,23 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
             gsl_vector_scale(state->comp[j]->mean, 1.0 / scale);
 
             // Normalize (rescale) cov
-            gsl_matrix_scale(state->comp[j]->cov, 1.0 / scale);
+            if (model->cov_diag) {
+              gsl_vector_scale(state->comp[j]->diag, 1.0 / scale);
+            }
+            else {
+              gsl_matrix_scale(state->comp[j]->cov, 1.0 / scale);
+            }
 
             // Diagonal correction
             for (k = 0; k < model->dim; k++) {
-              *gsl_matrix_ptr(state->comp[j]->cov, k, k) 
-                += SMALL_DIAGONAL_CORRECTION;
+              if (model->cov_diag) {
+                *gsl_vector_ptr(state->comp[j]->diag, k)
+                  += SMALL_DIAGONAL_CORRECTION;
+              }
+              else {
+                *gsl_matrix_ptr(state->comp[j]->cov, k, k) 
+                  += SMALL_DIAGONAL_CORRECTION;
+              }
             }
           }
           else {
@@ -759,6 +739,5 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
   gsl_matrix_free(loga);
   gsl_matrix_free(scgamma);
   gsl_vector_free(mean);
-  gsl_matrix_free(cov);
 }
 

@@ -16,10 +16,8 @@ int main(int argc, char** argv) {
   gsl_rng_env_setup();
   gsl_rng* rng = gsl_rng_alloc(gsl_rng_default);
 
-  FILE* in = fopen(argv[1], "r");
-  assert(in);
-  hmmgmm_t* model = hmmgmm_fscan(in);;
-  fclose(in);
+  hmmgmm_t* model = hmmgmm_alloc(2, 2, 2, 0);
+  // TODO
 
   printf("\n================\nModel 1\n");
   hmmgmm_fprint(stdout, model);
@@ -33,7 +31,7 @@ int main(int argc, char** argv) {
   }
   
   hmmgmm_t* model2 = hmmgmm_alloc(model->n, model->k,
-      model->dim);
+      model->dim, 0);
   random_init(model2, data, nos, rng);
 
   printf("\n================\nModel 2\n");
