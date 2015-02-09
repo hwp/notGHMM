@@ -65,11 +65,36 @@ int main(int argc, char** argv) {
 
   state = model2->states[1];
   gsl_vector_set(state->comp[0]->mean, 0, 0.0);
-  gsl_vector_set(state->comp[0]->mean, 1, 0.0);
-  gsl_matrix_set(state->comp[0]->cov, 0, 0, 1.0);
+  gsl_vector_set(state->comp[0]->mean, 1, 1.0);
+  gsl_matrix_set(state->comp[0]->cov, 0, 0, 2.0);
   gsl_matrix_set(state->comp[0]->cov, 0, 1, 0.0);
   gsl_matrix_set(state->comp[0]->cov, 1, 0, 0.0);
   gsl_matrix_set(state->comp[0]->cov, 1, 1, 1.0);
+
+  hmmgmm_t* model3 = hmmgmm_alloc(2, 1, 2, 1);
+
+  gsl_vector_set(model3->pi, 0, .5);
+  gsl_vector_set(model3->pi, 1, .5);
+
+  gsl_matrix_set(model3->a, 0, 0, .9);
+  gsl_matrix_set(model3->a, 0, 1, .1);
+  gsl_matrix_set(model3->a, 1, 0, .3);
+  gsl_matrix_set(model3->a, 1, 1, .7);
+
+  gsl_vector_set(model3->states[0]->weight, 0, 1.0);
+  gsl_vector_set(model3->states[1]->weight, 0, 1.0);
+
+  state = model3->states[0];
+  gsl_vector_set(state->comp[0]->mean, 0, 1.0);
+  gsl_vector_set(state->comp[0]->mean, 1, 1.0);
+  gsl_vector_set(state->comp[0]->diag, 0, 1.0);
+  gsl_vector_set(state->comp[0]->diag, 1, 1.0);
+
+  state = model3->states[1];
+  gsl_vector_set(state->comp[0]->mean, 0, 0.0);
+  gsl_vector_set(state->comp[0]->mean, 1, 1.0);
+  gsl_vector_set(state->comp[0]->diag, 0, 2.0);
+  gsl_vector_set(state->comp[0]->diag, 1, 1.0);
 
   size_t size = 1000;
   seq_t* seq = seq_gen(model, size, rng);
@@ -80,6 +105,9 @@ int main(int argc, char** argv) {
   gsl_matrix* logalpha2 = gsl_matrix_alloc(size, model2->n);
   forward_proc_log(model2, seq, logalpha2);
 
+  gsl_matrix* logalpha3 = gsl_matrix_alloc(size, model3->n);
+  forward_proc_log(model3, seq, logalpha3);
+
   gsl_matrix* logbeta = gsl_matrix_alloc(size, model->n);
   backward_proc_log(model, seq, logbeta);
 
@@ -88,13 +116,15 @@ int main(int argc, char** argv) {
 
   size_t i;
   for (i = 0; i < size; i++) {
-    printf("%g %g; %g %g; %g %g; %g %g\n",
+    printf("%g %g; %g %g; %g %g; %g %g; %g %g\n",
         gsl_vector_get(seq->data[i], 0),
         gsl_vector_get(seq->data[i], 1),
         gsl_matrix_get(logalpha, i, 0),
         gsl_matrix_get(logalpha, i, 1),
         gsl_matrix_get(logalpha2, i, 0),
         gsl_matrix_get(logalpha2, i, 1),
+        gsl_matrix_get(logalpha3, i, 0),
+        gsl_matrix_get(logalpha3, i, 1),
         gsl_matrix_get(logbeta, i, 0),
         gsl_matrix_get(logbeta, i, 1));
   }
@@ -122,6 +152,9 @@ int main(int argc, char** argv) {
   hmmgmm_fprint(stdout, model);
   printf("\n================\nModel 2\n");
   hmmgmm_fprint(stdout, model2);
+  printf("\n================\nModel 3\n");
+  hmmgmm_fprint(stdout, model3);
+
 
   size_t nos = 100;
   seq_t** data = calloc(nos, sizeof(seq_t*));
@@ -131,11 +164,14 @@ int main(int argc, char** argv) {
   
   double po = 0.0;
   double pn = 0.0;
+  double p3 = 0.0;
   for (i = 0; i < nos; i++) {
     forward_proc_log(model, data[i], logalpha);
     po += hmm_log_likelihood(logalpha);
     forward_proc_log(model2, data[i], logalpha);
     pn += hmm_log_likelihood(logalpha);
+    forward_proc_log(model3, data[i], logalpha);
+    p3 += hmm_log_likelihood(logalpha);
   }
 
   baum_welch(model2, data, nos);
@@ -143,16 +179,25 @@ int main(int argc, char** argv) {
   printf("\n================\nModel 2 (re-estimated)\n");
   hmmgmm_fprint(stdout, model2);
 
+  baum_welch(model3, data, nos);
+
+  printf("\n================\nModel 3 (re-estimated)\n");
+  hmmgmm_fprint(stdout, model3);
+
   double pr = 0.0;
+  double p3r = 0.0;
   for (i = 0; i < nos; i++) {
     forward_proc_log(model2, data[i], logalpha);
     pr += hmm_log_likelihood(logalpha);
+    forward_proc_log(model3, data[i], logalpha);
+    p3r += hmm_log_likelihood(logalpha);
   }
 
-  printf("\n P = %g, %g, %g\n", po, pn, pr);
+  printf("\n P = %g, (%g, %g) => (%g, %g)\n", po, pn, p3, pr, p3r);
 
   hmmgmm_free(model);
   hmmgmm_free(model2);
+  hmmgmm_free(model3);
   seq_free(seq);
   for (i = 0; i < nos; i++) {
     seq_free(data[i]);
@@ -160,6 +205,7 @@ int main(int argc, char** argv) {
   free(data);
   gsl_matrix_free(logalpha);
   gsl_matrix_free(logalpha2);
+  gsl_matrix_free(logalpha3);
   gsl_matrix_free(logbeta);
   free(hidden);
 
