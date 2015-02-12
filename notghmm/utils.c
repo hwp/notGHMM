@@ -158,6 +158,7 @@ void gmm_free(gmm_t* gmm) {
       for (i = 0; i < gmm->k; i++) {
         gaussian_free(gmm->comp[i]);
       }
+      free(gmm->comp);
     }
 
     free(gmm);
