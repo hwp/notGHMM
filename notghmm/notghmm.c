@@ -503,12 +503,8 @@ void random_init(hmmgmm_t* model, seq_t** data, size_t nos,
 void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
   hmmgmm_t* nmodel = hmmgmm_alloc(model->n, model->k,
       model->dim, model->cov_diag);
-  gsl_vector* gamma = gsl_vector_alloc(model->n);
-  gsl_vector* cgamma = gsl_vector_alloc(model->k);
-  gsl_matrix* xi = gsl_matrix_alloc(model->n, model->n);
   gsl_matrix* loga = gsl_matrix_alloc(model->n, model->n);
   gsl_matrix* scgamma = gsl_matrix_alloc(model->n, model->k);
-  gsl_vector* mean = gsl_vector_alloc(model->dim);
 
   size_t i, j, k, s, t;
   double slogpo = -HUGE_VAL;
@@ -545,106 +541,142 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
 
     gsl_matrix_set_zero(scgamma);
 
-    // Accumulate
-    for (s = 0; s < nos; s++) { // for all sequences
-      gsl_matrix* logalpha = gsl_matrix_alloc(data[s]->size,
-          model->n);
-      gsl_matrix* logbeta = gsl_matrix_alloc(data[s]->size,
-          model->n);
+#pragma omp parallel private(i, j, s, t) shared(loga) reduction(+:slogpo)
+    {
+      gsl_vector* gamma = gsl_vector_alloc(model->n);
+      gsl_vector* cgamma = gsl_vector_alloc(model->k);
+      gsl_matrix* xi = gsl_matrix_alloc(model->n, model->n);
+      gsl_vector* mean = gsl_vector_alloc(model->dim);
 
-      forward_proc_log(model, data[s], logalpha);
-      backward_proc_log(model, data[s], logbeta);
+      // Accumulate
+#pragma omp for
+      for (s = 0; s < nos; s++) { // for all sequences
+        gsl_matrix* logalpha = gsl_matrix_alloc(data[s]->size,
+            model->n);
+        gsl_matrix* logbeta = gsl_matrix_alloc(data[s]->size,
+            model->n);
 
-      double logpo = hmm_log_likelihood(logalpha);
-      assert(isfinite(logpo));
-      slogpo += logpo;
+        forward_proc_log(model, data[s], logalpha);
+        backward_proc_log(model, data[s], logbeta);
 
-      for (t = 0; t < data[s]->size; t++) { // for all time
-        for (i = 0; i < model->n; i++) {
-          // Calculate gamma
-          double gi = DEBUG_EXP(-logpo
-              + gsl_matrix_get(logalpha, t, i)
-              + gsl_matrix_get(logbeta, t, i));
-          assert(gi >= 0.0 && gi <= MORE_THAN_ONE);
-          gsl_vector_set(gamma, i, gi);
-        }
-        // is it necessary to normalize gamma ? 
-        // cause there is arithmetic error
+        double logpo = hmm_log_likelihood(logalpha);
+        assert(isfinite(logpo));
+        slogpo += logpo;
 
-        if (t == 0) {
-          // Accumulate pi
-          gsl_vector_add(nmodel->pi, gamma);
-        }
+        for (t = 0; t < data[s]->size; t++) { // for all time
+          for (i = 0; i < model->n; i++) {
+            // Calculate gamma
+            double gi = DEBUG_EXP(-logpo
+                + gsl_matrix_get(logalpha, t, i)
+                + gsl_matrix_get(logbeta, t, i));
+            assert(gi >= 0.0 && gi <= MORE_THAN_ONE);
+            gsl_vector_set(gamma, i, gi);
+          }
+          // is it necessary to normalize gamma ? 
+          // cause there is arithmetic error
 
-        if (t < data[s]->size - 1) {
-          // Caculate xi
-          for (j = 0; j < model->n; j++) {
-            double logb = gmm_pdf_log(model->states[j],
-                data[s]->data[t + 1]);
-            for (i = 0; i < model->n; i++) {
-              gsl_matrix_set(xi, i, j, DEBUG_EXP(
-                    gsl_matrix_get(logalpha, t, i)
-                    + gsl_matrix_get(loga, i, j)
-                    + gsl_matrix_get(logbeta, t + 1, j)
-                    + logb - logpo));
+          if (t == 0) {
+            // Accumulate pi
+#pragma omp critical
+            {
+              gsl_vector_add(nmodel->pi, gamma);
             }
           }
 
-          // Accumulate a
-          // Here we don't divide by gamma 
-          // because we will normalize (sum is 1) a later.
-          gsl_matrix_add(nmodel->a, xi);
-        }
+          if (t < data[s]->size - 1) {
+            // Caculate xi
+            for (j = 0; j < model->n; j++) {
+              double logb = gmm_pdf_log(model->states[j],
+                  data[s]->data[t + 1]);
+              for (i = 0; i < model->n; i++) {
+                gsl_matrix_set(xi, i, j, DEBUG_EXP(
+                      gsl_matrix_get(logalpha, t, i)
+                      + gsl_matrix_get(loga, i, j)
+                      + gsl_matrix_get(logbeta, t + 1, j)
+                      + logb - logpo));
+              }
+            }
 
-        for (i = 0; i < model->n; i++) { // go through all states
-          gmm_t* state = model->states[i];
-          gmm_t* nstate = nmodel->states[i];
-
-          // Calculate cgamma of mixture components
-          for (j = 0; j < model->k; j++) {
-            gsl_vector_set(cgamma, j, 
-                gsl_vector_get(state->weight, j)
-                * DEBUG_EXP(gaussian_pdf_log(state->comp[j],
-                    data[s]->data[t])));
+            // Accumulate a
+            // Here we don't divide by gamma 
+            // because we will normalize (sum is 1) a later.
+#pragma omp critical
+            {
+              gsl_matrix_add(nmodel->a, xi);
+            }
           }
 
-          double sum = gsl_blas_dasum(cgamma);
-          assert(isfinite(sum));
-          if (sum > MORE_THAN_ZERO && isfinite(1.0 / sum)) {
-            // Normalize and multiply by gamma
-            gsl_vector_scale(cgamma, 
-                gsl_vector_get(gamma, i) / sum);
+          for (i = 0; i < model->n; i++) { // go through all states
+            gmm_t* state = model->states[i];
+            gmm_t* nstate = nmodel->states[i];
 
-            // Accumulate mixture weight
-            gsl_vector_add(nstate->weight, cgamma);
-
-            // Accumulate mean and cov
+            // Calculate cgamma of mixture components
             for (j = 0; j < model->k; j++) {
-              gsl_vector_memcpy(mean, data[s]->data[t]);
-              gsl_vector_scale(mean, gsl_vector_get(cgamma, j));
-              gsl_vector_add(nstate->comp[j]->mean, mean);
-
-              gsl_vector_memcpy(mean, data[s]->data[t]);
-              gsl_vector_sub(mean, state->comp[j]->mean);
-              if (model->cov_diag) {
-                gsl_vector_mul(mean, mean);
-                gsl_vector_scale(mean, gsl_vector_get(cgamma, j));
-                gsl_vector_add(nstate->comp[j]->diag, mean);
-              }
-              else {
-                gsl_blas_dger(gsl_vector_get(cgamma, j), mean,
-                    mean, nstate->comp[j]->cov);
-              }
-              *gsl_matrix_ptr(scgamma, i, j) 
-                += gsl_vector_get(cgamma, j);
+              gsl_vector_set(cgamma, j, 
+                  gsl_vector_get(state->weight, j)
+                  * DEBUG_EXP(gaussian_pdf_log(state->comp[j],
+                      data[s]->data[t])));
             }
-          }
-        } // end for all states
-      } // end for all time
 
-      gsl_matrix_free(logalpha);
-      gsl_matrix_free(logbeta);
-    } // end for all sequences
+            double sum = gsl_blas_dasum(cgamma);
+            assert(isfinite(sum));
+            if (sum > MORE_THAN_ZERO && isfinite(1.0 / sum)) {
+              // Normalize and multiply by gamma
+              gsl_vector_scale(cgamma, 
+                  gsl_vector_get(gamma, i) / sum);
+
+              // Accumulate mixture weight
+#pragma omp critical
+              {
+                gsl_vector_add(nstate->weight, cgamma);
+              }
+
+              // Accumulate mean and cov
+              for (j = 0; j < model->k; j++) {
+                gsl_vector_memcpy(mean, data[s]->data[t]);
+                gsl_vector_scale(mean, gsl_vector_get(cgamma, j));
+#pragma omp critical
+                {
+                  gsl_vector_add(nstate->comp[j]->mean, mean);
+                }
+
+                gsl_vector_memcpy(mean, data[s]->data[t]);
+                gsl_vector_sub(mean, state->comp[j]->mean);
+                if (model->cov_diag) {
+                  gsl_vector_mul(mean, mean);
+                  gsl_vector_scale(mean, gsl_vector_get(cgamma, j));
+#pragma omp critical
+                  {
+                    gsl_vector_add(nstate->comp[j]->diag, mean);
+                  }
+                }
+                else {
+#pragma omp critical
+                  {
+                    gsl_blas_dger(gsl_vector_get(cgamma, j), mean,
+                        mean, nstate->comp[j]->cov);
+                  }
+                }
+#pragma omp critical
+                {
+                  *gsl_matrix_ptr(scgamma, i, j) 
+                    += gsl_vector_get(cgamma, j);
+                }
+              }
+            }
+          } // end for all states
+        } // end for all time
+
+        gsl_matrix_free(logalpha);
+        gsl_matrix_free(logbeta);
+      } // end for all sequences
+
+      gsl_vector_free(gamma);
+      gsl_vector_free(cgamma);
+      gsl_matrix_free(xi);
+      gsl_vector_free(mean);
+    }
+    // end of parallel
 
     // Normalize
     // Normalize pi, sum = 1
@@ -733,11 +765,7 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
   } while (slogpo - plogpo > BW_STOP_THRESHOLD);
 
   hmmgmm_free(nmodel);
-  gsl_vector_free(gamma);
-  gsl_vector_free(cgamma);
-  gsl_matrix_free(xi);
   gsl_matrix_free(loga);
   gsl_matrix_free(scgamma);
-  gsl_vector_free(mean);
 }
 
