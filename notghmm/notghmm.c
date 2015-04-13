@@ -410,6 +410,8 @@ double viterbi_log(const hmmgmm_t* model, const seq_t* seq,
 
 void random_init(hmmgmm_t* model, seq_t** data, size_t nos,
     gsl_rng* rng) {
+  assert(nos > 0);
+
   size_t i, j, k;
   double p, sum;
   
