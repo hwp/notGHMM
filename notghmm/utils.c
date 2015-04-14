@@ -25,6 +25,7 @@
 #include <fenv.h>
 #include <assert.h>
 #include <errno.h>
+#include <limits.h>
 #include <string.h>
 
 #include <gsl/gsl_rng.h>
@@ -33,6 +34,10 @@
 #include <gsl/gsl_matrix.h>
 #include <gsl/gsl_blas.h>
 #include <gsl/gsl_linalg.h>
+
+#include <flann/flann.h>
+
+#define MORE_THAN_ZERO 1e-10
 
 gaussian_t* gaussian_alloc(size_t dim, int cov_diag) {
   gaussian_t* r = malloc(sizeof(gaussian_t));
@@ -84,6 +89,35 @@ int gaussian_isdiagonal(const gaussian_t* dist) {
     assert(dist->diag);
     return 1;
   }
+}
+
+int gaussian_valid(const gaussian_t* dist) {
+  if (!(dist && dist->dim > 0 && dist->mean->size == dist->dim)) {
+    return 0;
+  }
+
+  // check positive definite 
+  if (gaussian_isdiagonal(dist)) {
+    if (!gsl_vector_ispos(dist->diag)) {
+      return 0;
+    }
+  }
+  else {
+    gsl_matrix* v = gsl_matrix_alloc(dist->dim, dist->dim);
+    gsl_matrix_memcpy(v, dist->cov);
+
+    gsl_set_error_handler_off();
+    int status = gsl_linalg_cholesky_decomp(v);
+    gsl_set_error_handler(NULL);
+
+    gsl_matrix_free(v);
+
+    if (status == GSL_EDOM) {
+      return 0;
+    }
+  }
+
+  return 1;
 }
 
 void gaussian_memcpy(gaussian_t* dest, const gaussian_t* src) {
@@ -165,6 +199,22 @@ void gmm_free(gmm_t* gmm) {
   }
 }
 
+int gmm_valid(const gmm_t* gmm) {
+  if (!(gmm && gmm->k > 0 && gmm->dim > 0
+        && discrete_valid(gmm->weight))) {
+    return 0;
+  }
+
+  size_t i;
+  for (i = 0; i < gmm->k; i++) {
+    if (!gaussian_valid(gmm->comp[i])) {
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
 void gmm_memcpy(gmm_t* dest, const gmm_t* src) {
   assert(dest->k == src->k && dest->dim == src->dim);
 
@@ -173,6 +223,28 @@ void gmm_memcpy(gmm_t* dest, const gmm_t* src) {
   for (i = 0; i < src->k; i++) {
     gaussian_memcpy(dest->comp[i], src->comp[i]);
   }
+}
+
+int discrete_valid(const gsl_vector* dist) {
+  if (dist == NULL) {
+    return 0;
+  }
+  size_t i;
+  double x;
+  double s = 0;
+  for (i = 0; i < dist->size; i++) {
+    x = gsl_vector_get(dist, i);
+    if (x < 0.0) {
+      return 0.0;
+    }
+    s += x;
+  }
+
+  if (fabs(s - 1.0) > MORE_THAN_ZERO) {
+    return 0;
+  }
+
+  return 1;
 }
 
 size_t discrete_gen(const gsl_rng* rng, const gsl_vector* dist) {
@@ -382,4 +454,83 @@ void matrix_fscan(FILE* stream, gsl_matrix* m) {
     fscanf(stream, "%lg\n", gsl_matrix_ptr(m, i, j));
   }
 }
+
+static void cal_center(float* result, float* data, int* indices, int ncenter, int ndata, int cols) {
+  int i, j, k;
+  int t = 0;
+  for (i = 0; i < ncenter; i++) {
+    int c = 0;
+    for (k = 0; k < cols; k++) {
+      result[i * cols + k] = 0.0f;
+    }
+    for (j = 0; j < ndata; j++) {
+      if (indices[j] == i) {
+        for (k = 0; k < cols; k++) {
+          result[i * cols + k] += data[j * cols + k];
+        }
+        c++;
+      }
+    }
+    for (k = 0; k < cols; k++) {
+      result[i * cols + k] /= (float) c;
+    }
+    t += c;
+  }
+
+  assert(t == ndata);
+}
+
+void kmeans_cluster(gsl_vector** data, size_t size,
+    size_t k, size_t* index, gsl_vector** center) {
+  assert(k > 0 && k <= size && k <= INT_MAX);
+  if (!index && !center) {
+    return;
+  }
+
+  size_t i, j;
+
+  struct FLANNParameters flann_param = DEFAULT_FLANN_PARAMETERS;
+
+  int cols = data[0]->size;
+  int* cid = malloc(size * sizeof(int));
+  float* dataset = malloc(k * cols * sizeof(float));
+  float* dataold = malloc(k * cols * sizeof(float));
+  float* testset = malloc(size * cols * sizeof(float));
+
+  for (i = 0; i < size; i++) {
+    for (j = 0; j < cols; j++) {
+      testset[i * cols + j] = (float) gsl_vector_get(data[i], j);
+    }
+  }
+
+  // random init
+  for (i = 0; i < size; i++) {
+    cid[i] = i % k;
+  }
+
+  cal_center(dataset, testset, cid, k, size, cols);
+
+  float dist = 1.0;
+  while (dist > .001) {
+    memcpy(dataold, dataset, k * cols * sizeof(float));
+
+    // new cid
+    flann_find_nearest_neighbors(dataset, k, cols, testset, size, cid, NULL, 1, &flann_param);
+
+    // calculate new center
+    cal_center(dataset, testset, cid, k, size, cols);
+
+    // dist
+    dist = 0.0;
+    for (i = 0; i < k * cols; i++) {
+      dist += fabsf(dataset[i] - dataold[i]);
+    }
+  }
+
+  free(cid);
+  free(dataset);
+  free(dataold);
+  free(testset);
+}
+
 

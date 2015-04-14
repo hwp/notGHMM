@@ -130,6 +130,13 @@ hmmgmm_t* hmmgmm_alloc(size_t n, size_t k, size_t dim, int cov_diag);
 void hmmgmm_free(hmmgmm_t* model);
 
 /**
+ * Check if the parameters are valid
+ *
+ * @return 1 if valid, 0 if invalid.
+ */
+int hmmgmm_valid(const hmmgmm_t* model);
+
+/**
  * Copy a HMM into another. The two models must have
  * the same size (aka n, k and dim);
  *
@@ -215,6 +222,11 @@ void forward_proc_log(const hmmgmm_t* model,
 double hmm_log_likelihood(const gsl_matrix* logalpha);
 
 /**
+ * Compute the log likelihood of all the sequences.
+ */
+double hmm_log_likelihood_all(const hmmgmm_t* model, seq_t** data, size_t nos);
+
+/**
  * Back procedure, which take scaling into account.
  * Calculate the logarithm of all back variables, aka @f$ \beta @f$.
  * The calculation use the following formulas:
@@ -266,6 +278,24 @@ double viterbi_log(const hmmgmm_t* model, const seq_t* seq,
  * @param rng the GSL random number generator.
  */
 void random_init(hmmgmm_t* model, seq_t** data, size_t nos,
+    gsl_rng* rng);
+
+/**
+ * Initialize the model with parameters.
+ *
+ * Elements of pi, a are randomly chosen
+ * from uniform distribution (0.75, 1.25) and then
+ * normalized (the sum is 1).
+ * 
+ * Mixture weight, mean and covariance of gmm components
+ * are estimated using k-means clustering.
+ *
+ * @param[out] model the HMM model to be re-estimated.
+ * @param data a set of observed sequences.
+ * @param nos number of sequences.
+ * @param rng the GSL random number generator.
+ */
+void kmeans_init(hmmgmm_t* model, seq_t** data, size_t nos,
     gsl_rng* rng);
 
 /**

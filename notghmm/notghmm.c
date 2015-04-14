@@ -18,10 +18,15 @@
  * Boston, MA 02110-1301, USA.
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include "notghmm.h"
 #include "utils.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include <assert.h>
 
@@ -32,7 +37,7 @@
 #define BW_STOP_THRESHOLD 0.1
 #define NUM_INIT_SAMPLES 20
 
-#define MORE_THAN_ZERO 1e-100
+#define MORE_THAN_ZERO 1e-20
 #define MORE_THAN_ONE (1.00001)
 #define SMALL_DIAGONAL_CORRECTION 1e-6
 
@@ -145,6 +150,33 @@ void hmmgmm_free(hmmgmm_t* model) {
 
     free(model);
   }
+}
+
+int hmmgmm_valid(const hmmgmm_t* model) {
+  size_t i;
+
+  if (!(model && model->a && model->pi && model->states)) {
+    return 0;
+  }
+  
+  if (!discrete_valid(model->pi)) {
+    return 0;
+  }
+
+  for (i = 0; i < model->n; i++) {
+    if (!gmm_valid(model->states[i])) {
+      return 0;
+    }
+  }
+
+  for (i = 0; i < model->n; i++) {
+    gsl_vector_view v = gsl_matrix_row(model->a, i);
+    if (!discrete_valid(&v.vector)) {
+      return 0;
+    }
+  }
+
+  return 1;
 }
 
 void hmmgmm_memcpy(hmmgmm_t* dest, const hmmgmm_t* src) {
@@ -311,6 +343,19 @@ double hmm_log_likelihood(const gsl_matrix* logalpha) {
   gsl_vector_const_view v = gsl_matrix_const_row(logalpha,
       logalpha->size1 - 1);
   return log_sum_exp(&v.vector);
+}
+
+double hmm_log_likelihood_all(const hmmgmm_t* model, seq_t** data, size_t nos) {
+  size_t i;
+  double logl = 0.0;
+  for (i = 0; i < nos; i++) {
+    gsl_matrix* logalpha = gsl_matrix_alloc(data[i]->size, data[i]->dim);
+    forward_proc_log(model, data[i], logalpha);
+    logl += hmm_log_likelihood(logalpha);
+    gsl_matrix_free(logalpha);
+  }
+
+  return logl;
 }
 
 void backward_proc_log(const hmmgmm_t* model,
@@ -499,6 +544,139 @@ void random_init(hmmgmm_t* model, seq_t** data, size_t nos,
     }
   }
 
+  gsl_vector_free(dx);
+}
+
+typedef struct {
+  gsl_vector** base;
+  size_t* index;
+} cmp_t;
+
+typedef int (*cmp_f)(const void *, const void *, void *);
+
+static int index_compar(gsl_vector** a, gsl_vector** b, cmp_t* data) {
+  size_t ia = a - data->base;
+  size_t ib = b - data->base;
+  return data->index[ia] - data->index[ib];
+}
+
+void kmeans_init(hmmgmm_t* model, seq_t** data, size_t nos,
+    gsl_rng* rng) {
+  assert(nos > 0);
+
+  size_t i, j, k;
+  double p, sum;
+  
+  sum = 0.0;
+  for (i = 0; i < model->n; i++) {
+    p = 0.75 + 0.5 * gsl_rng_uniform(rng);
+    gsl_vector_set(model->pi, i, p);
+    sum += p;
+  }
+  gsl_vector_scale(model->pi, 1.0 / sum);
+
+  for (j = 0; j < model->n; j++) {
+    gsl_vector_view v = gsl_matrix_row(model->a, j);
+    sum = 0.0;
+    for (i = 0; i < model->n; i++) {
+      p = 0.75 + 0.5 * gsl_rng_uniform(rng);
+      gsl_vector_set(&v.vector, i, p);
+      sum += p;
+    }
+    gsl_vector_scale(&v.vector, 1.0 / sum);
+  }
+
+  size_t total = 0;
+  for (i = 0; i < nos; i++) {
+    total += data[i]->size;
+  }
+
+  gsl_vector** all = malloc(total * sizeof(gsl_vector*));
+  j = 0;
+  for (i = 0; i < nos; i++) {
+    memcpy(all + j, data[i]->data,
+        data[i]->size * sizeof(gsl_vector*));
+    j += data[i]->size;
+  }
+  assert(j == total);
+
+  size_t* states = malloc(total * sizeof(size_t));
+  size_t* comps = malloc(total * sizeof(size_t));
+
+  kmeans_cluster(all, total, model->n, states, NULL);
+
+  cmp_t cmp_data;
+  cmp_data.base = all;
+  cmp_data.index = states;
+  qsort_r(all, total, sizeof(gsl_vector*), (cmp_f) index_compar, &cmp_data);
+
+  gsl_vector* dx = gsl_vector_alloc(model->dim);
+  size_t e = 0;
+  size_t s;
+  for (i = 0; i < model->n; i++) {
+    s = e;
+    while (e < total && states[e] == i) {
+      e++;
+    }
+    assert(e - s > 0);
+
+    kmeans_cluster(all + s, e - s, model->k, comps + s, NULL);
+    for (j = 0; j < model->k; j++) {
+      gsl_vector* mean = model->states[i]->comp[j]->mean;
+      gsl_vector* diag = model->states[i]->comp[j]->diag;
+      gsl_matrix* cov = model->states[i]->comp[j]->cov;
+
+      gsl_vector_set_zero(mean);
+
+      if (model->cov_diag) {
+        gsl_vector_set_zero(diag);
+      }
+      else {
+        gsl_matrix_set_zero(cov);
+      }
+
+      size_t c = 0;
+      for (k = s; k < e; k++) {
+        if (comps[k] == j) {
+          gsl_vector_add(mean, all[k]);
+          c++;
+        }
+      }
+      gsl_vector_scale(mean, 1.0 / c);
+
+      gsl_vector_set(model->states[i]->weight, j,
+          (double) c / (double) (e - s));
+
+      for (k = s; k < e; k++) {
+        if (comps[k] == j) {
+          gsl_vector_memcpy(dx, all[k]);
+          gsl_vector_sub(dx, mean);
+          if (model->cov_diag) {
+            gsl_vector_mul(dx, dx);
+            gsl_vector_scale(dx, 1.0 / (c - 1));
+            gsl_vector_add(diag, dx);
+          }
+          else {
+            gsl_blas_dger(1.0 / (c - 1), dx, dx, cov);
+          }
+        }
+      }
+
+      // Diagonal correction
+      for (k = 0; k < model->dim; k++) {
+        if (model->cov_diag) {
+          *gsl_vector_ptr(diag, k) += SMALL_DIAGONAL_CORRECTION;
+        }
+        else {
+          *gsl_matrix_ptr(cov, k, k) += SMALL_DIAGONAL_CORRECTION;
+        }
+      }
+    }
+  }
+
+  free(all);
+  free(states);
+  free(comps);
   gsl_vector_free(dx);
 }
 

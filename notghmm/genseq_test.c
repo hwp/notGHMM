@@ -208,6 +208,7 @@ int main(int argc, char** argv) {
   gsl_matrix_free(logalpha3);
   gsl_matrix_free(logbeta);
   free(hidden);
+  gsl_rng_free(rng);
 
   return 0;
 }

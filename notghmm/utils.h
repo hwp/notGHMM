@@ -140,6 +140,13 @@ gmm_t* gmm_alloc(size_t dim, size_t k, int cov_diag);
 void gmm_free(gmm_t* gmm);
 
 /**
+ * Check if a GMM is valid.
+ *
+ * @return 1 if valid, 0 if invalid.
+ */
+int gmm_valid(const gmm_t* gmm);
+
+/**
  * Copy a GMM into another. The two models must have
  * the same k and dim;
  *
@@ -147,6 +154,13 @@ void gmm_free(gmm_t* gmm);
  * @param src the model to be copied from.
  */
 void gmm_memcpy(gmm_t* dest, const gmm_t* src);
+
+/**
+ * Check if a discrete distribution is valid.
+ *
+ * @return 1 if valid, 0 if invalid.
+ */
+int discrete_valid(const gsl_vector* dist);
 
 /**
  * Generate a random sample from a discrete distribution.
@@ -279,6 +293,22 @@ void matrix_fprint(FILE* stream, const gsl_matrix* m);
  *   preallocated with the correct size.
  */
 void matrix_fscan(FILE* stream, gsl_matrix* m);
+
+/**
+ * Cluster the data using k-means algorithm.
+ * 
+ * @param data the data to be clustered.
+ * @param size number of data.
+ * @param k number of clusters.
+ * @param[out] index cluster indices of the data.
+ *   It must be preallocated with the correct size.
+ *   set null if no output expected.
+ * @param[out] center cluster centers.
+ *   It must be preallocated with the correct size.
+ *   set null if no output expected.
+ */
+void kmeans_cluster(gsl_vector** data, size_t size,
+    size_t k, size_t* index, gsl_vector** center);
 
 #endif  // UTILS_H_
 
