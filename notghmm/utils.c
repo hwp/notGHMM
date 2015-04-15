@@ -98,8 +98,12 @@ int gaussian_valid(const gaussian_t* dist) {
 
   // check positive definite 
   if (gaussian_isdiagonal(dist)) {
-    if (!gsl_vector_ispos(dist->diag)) {
-      return 0;
+    size_t i = 0;
+    for (i = 0; i < dist->dim; i++) {
+      double x = gsl_vector_get(dist->diag, i);
+      if (!isnormal(x) || x <= 0) {
+        return 0;
+      }
     }
   }
   else {
@@ -526,6 +530,21 @@ void kmeans_cluster(gsl_vector** data, size_t size,
     dist = 0.0;
     for (i = 0; i < k * cols; i++) {
       dist += fabsf(dataset[i] - dataold[i]);
+    }
+  }
+
+  if (index) {
+    for (i = 0; i < size; i++) {
+      index[i] = cid[i];
+    }
+  }
+
+  if (center) {
+    for (i = 0; i < k; k++) {
+      assert(center[i]->size == cols);
+      for (j = 0; j < cols; j++) {
+        gsl_vector_set(center[i], j, dataset[i * cols + j]);
+      }
     }
   }
 

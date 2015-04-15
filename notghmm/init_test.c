@@ -31,7 +31,7 @@ int main(int argc, char** argv) {
   assert(hmmgmm_valid(rinit));
 
   hmmgmm_t* kinit = hmmgmm_alloc(2, 2, 2, 0);
-  random_init(kinit, data, nos, rng);
+  kmeans_init(kinit, data, nos, rng);
   assert(hmmgmm_valid(kinit));
 
   printf("original model : %g\n", hmm_log_likelihood_all(model, data, nos));

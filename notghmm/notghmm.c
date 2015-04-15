@@ -547,19 +547,6 @@ void random_init(hmmgmm_t* model, seq_t** data, size_t nos,
   gsl_vector_free(dx);
 }
 
-typedef struct {
-  gsl_vector** base;
-  size_t* index;
-} cmp_t;
-
-typedef int (*cmp_f)(const void *, const void *, void *);
-
-static int index_compar(gsl_vector** a, gsl_vector** b, cmp_t* data) {
-  size_t ia = a - data->base;
-  size_t ib = b - data->base;
-  return data->index[ia] - data->index[ib];
-}
-
 void kmeans_init(hmmgmm_t* model, seq_t** data, size_t nos,
     gsl_rng* rng) {
   assert(nos > 0);
@@ -592,6 +579,7 @@ void kmeans_init(hmmgmm_t* model, seq_t** data, size_t nos,
   }
 
   gsl_vector** all = malloc(total * sizeof(gsl_vector*));
+  gsl_vector** sorted = malloc(total * sizeof(gsl_vector*));
   j = 0;
   for (i = 0; i < nos; i++) {
     memcpy(all + j, data[i]->data,
@@ -605,22 +593,21 @@ void kmeans_init(hmmgmm_t* model, seq_t** data, size_t nos,
 
   kmeans_cluster(all, total, model->n, states, NULL);
 
-  cmp_t cmp_data;
-  cmp_data.base = all;
-  cmp_data.index = states;
-  qsort_r(all, total, sizeof(gsl_vector*), (cmp_f) index_compar, &cmp_data);
-
   gsl_vector* dx = gsl_vector_alloc(model->dim);
   size_t e = 0;
   size_t s;
   for (i = 0; i < model->n; i++) {
     s = e;
-    while (e < total && states[e] == i) {
-      e++;
+    for (j = 0; j < total; j++) {
+      if (states[j] == i) {
+        sorted[e] = all[j];
+        e++;
+      }
     }
+    
     assert(e - s > 0);
 
-    kmeans_cluster(all + s, e - s, model->k, comps + s, NULL);
+    kmeans_cluster(sorted + s, e - s, model->k, comps + s, NULL);
     for (j = 0; j < model->k; j++) {
       gsl_vector* mean = model->states[i]->comp[j]->mean;
       gsl_vector* diag = model->states[i]->comp[j]->diag;
@@ -638,26 +625,29 @@ void kmeans_init(hmmgmm_t* model, seq_t** data, size_t nos,
       size_t c = 0;
       for (k = s; k < e; k++) {
         if (comps[k] == j) {
-          gsl_vector_add(mean, all[k]);
+          gsl_vector_add(mean, sorted[k]);
           c++;
         }
       }
+      assert(c > 0);
       gsl_vector_scale(mean, 1.0 / c);
 
       gsl_vector_set(model->states[i]->weight, j,
           (double) c / (double) (e - s));
 
-      for (k = s; k < e; k++) {
-        if (comps[k] == j) {
-          gsl_vector_memcpy(dx, all[k]);
-          gsl_vector_sub(dx, mean);
-          if (model->cov_diag) {
-            gsl_vector_mul(dx, dx);
-            gsl_vector_scale(dx, 1.0 / (c - 1));
-            gsl_vector_add(diag, dx);
-          }
-          else {
-            gsl_blas_dger(1.0 / (c - 1), dx, dx, cov);
+      if (c > 1) {
+        for (k = s; k < e; k++) {
+          if (comps[k] == j) {
+            gsl_vector_memcpy(dx, sorted[k]);
+            gsl_vector_sub(dx, mean);
+            if (model->cov_diag) {
+              gsl_vector_mul(dx, dx);
+              gsl_vector_scale(dx, 1.0 / (c - 1));
+              gsl_vector_add(diag, dx);
+            }
+            else {
+              gsl_blas_dger(1.0 / (c - 1), dx, dx, cov);
+            }
           }
         }
       }
@@ -674,7 +664,10 @@ void kmeans_init(hmmgmm_t* model, seq_t** data, size_t nos,
     }
   }
 
+  assert(e == total);
+
   free(all);
+  free(sorted);
   free(states);
   free(comps);
   gsl_vector_free(dx);
