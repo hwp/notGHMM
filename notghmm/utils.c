@@ -496,6 +496,7 @@ void kmeans_cluster(gsl_vector** data, size_t size,
   float* dataset = malloc(k * cols * sizeof(float));
   float* dataold = malloc(k * cols * sizeof(float));
   float* testset = malloc(size * cols * sizeof(float));
+  float* distance = malloc(size * sizeof(float));
 
   for (i = 0; i < size; i++) {
     for (j = 0; j < cols; j++) {
@@ -515,7 +516,8 @@ void kmeans_cluster(gsl_vector** data, size_t size,
     memcpy(dataold, dataset, k * cols * sizeof(float));
 
     // new cid
-    flann_find_nearest_neighbors(dataset, k, cols, testset, size, cid, NULL, 1, &flann_param);
+    flann_find_nearest_neighbors(dataset, k, cols,
+        testset, size, cid, distance, 1, &flann_param);
 
     // calculate new center
     cal_center(dataset, testset, cid, k, size, cols);
@@ -531,6 +533,7 @@ void kmeans_cluster(gsl_vector** data, size_t size,
   free(dataset);
   free(dataold);
   free(testset);
+  free(distance);
 }
 
 
