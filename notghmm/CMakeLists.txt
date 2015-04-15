@@ -14,6 +14,7 @@ add_executable(init_test init_test.c notghmm.c utils.c)
 target_link_libraries(init_test ${GSL_LIBRARIES} ${FLANN_LIBRARIES})
 
 add_library(notghmm SHARED notghmm.c utils.c)
+target_link_libraries(notghmm PRIVATE ${GSL_LIBRARIES} ${FLANN_LIBRARIES})
 
 install(TARGETS notghmm
   LIBRARY DESTINATION lib)

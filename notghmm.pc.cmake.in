@@ -9,5 +9,6 @@ Version: @PACKAGE_VERSION@
 URL: @PACKAGE_URL@
 Requires.private: gsl
 Libs: -L${libdir} -lnotghmm
+Libs.private: -lflann
 Cflags: -I${includedir}
 
