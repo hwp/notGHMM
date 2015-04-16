@@ -38,6 +38,7 @@
 #include <flann/flann.h>
 
 #define MORE_THAN_ZERO 1e-10
+#define KMEANS_MODIFI  1e-4
 
 gaussian_t* gaussian_alloc(size_t dim, int cov_diag) {
   gaussian_t* r = malloc(sizeof(gaussian_t));
@@ -459,7 +460,8 @@ void matrix_fscan(FILE* stream, gsl_matrix* m) {
   }
 }
 
-static void cal_center(float* result, float* data, int* indices, int ncenter, int ndata, int cols) {
+static void cal_center(float* result, float* data, int* indices,
+    int ncenter, int ndata, int cols) {
   int i, j, k;
   int t = 0;
   for (i = 0; i < ncenter; i++) {
@@ -485,7 +487,7 @@ static void cal_center(float* result, float* data, int* indices, int ncenter, in
 }
 
 void kmeans_cluster(gsl_vector** data, size_t size,
-    size_t k, size_t* index, gsl_vector** center) {
+    size_t k, size_t* index, gsl_vector** center, gsl_rng* rng) {
   assert(k > 0 && k <= size && k <= INT_MAX);
   if (!index && !center) {
     return;
@@ -511,6 +513,12 @@ void kmeans_cluster(gsl_vector** data, size_t size,
   // random init
   for (i = 0; i < size; i++) {
     cid[i] = i % k;
+  }
+
+  if (rng) {
+    for (i = 0; i < size * cols; i++) {
+      testset[i] *= 1.0 + KMEANS_MODIFI * 2.0 * (gsl_rng_uniform(rng) - .5);
+    }
   }
 
   cal_center(dataset, testset, cid, k, size, cols);

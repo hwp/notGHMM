@@ -591,7 +591,7 @@ void kmeans_init(hmmgmm_t* model, seq_t** data, size_t nos,
   size_t* states = malloc(total * sizeof(size_t));
   size_t* comps = malloc(total * sizeof(size_t));
 
-  kmeans_cluster(all, total, model->n, states, NULL);
+  kmeans_cluster(all, total, model->n, states, NULL, rng);
 
   gsl_vector* dx = gsl_vector_alloc(model->dim);
   size_t e = 0;
@@ -607,7 +607,7 @@ void kmeans_init(hmmgmm_t* model, seq_t** data, size_t nos,
     
     assert(e - s > 0);
 
-    kmeans_cluster(sorted + s, e - s, model->k, comps + s, NULL);
+    kmeans_cluster(sorted + s, e - s, model->k, comps + s, NULL, rng);
     for (j = 0; j < model->k; j++) {
       gsl_vector* mean = model->states[i]->comp[j]->mean;
       gsl_vector* diag = model->states[i]->comp[j]->diag;

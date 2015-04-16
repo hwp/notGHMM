@@ -306,9 +306,11 @@ void matrix_fscan(FILE* stream, gsl_matrix* m);
  * @param[out] center cluster centers.
  *   It must be preallocated with the correct size.
  *   set null if no output expected.
+ * @param rng random number generater. if not null,
+ *   randomly change the input values to avoid cluster with no element.
  */
 void kmeans_cluster(gsl_vector** data, size_t size,
-    size_t k, size_t* index, gsl_vector** center);
+    size_t k, size_t* index, gsl_vector** center, gsl_rng* rng);
 
 #endif  // UTILS_H_
 
