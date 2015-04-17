@@ -3,16 +3,20 @@ notGHMM
 
 This is a C library for Hidden Markov Model (HMM). 
 
-## Implemented functions
+## Implemented Functions
 * HMM with continuous observation space (Gaussian mixtures).
   * Probability Computation (forward/backward procedure)
   * Viterbi Algorithm
+  * Initial Parameter Estimation using k-means or randomly
   * Parameter Estimation (Baum-Welch Algorithm) with parallel acceleration
+  * Random sequence generation
 
 ## Dependent Libraries
 * GSL
+* Flann
 * OpenMP
-and
+
+Build system:
 * CMake
 
 ## Build and Install
