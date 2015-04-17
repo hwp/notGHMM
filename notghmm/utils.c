@@ -460,10 +460,28 @@ void matrix_fscan(FILE* stream, gsl_matrix* m) {
   }
 }
 
+static float tiny_modify(float x, gsl_rng* rng) {
+  if (rng) {
+    if (x == 0.0) {
+      x = KMEANS_MODIFI * 2.0 * (gsl_rng_uniform(rng) - .5);
+    }
+    else {
+      x *= 1.0 + KMEANS_MODIFI * 2.0 * (gsl_rng_uniform(rng) - .5);
+    }
+  }
+  else {
+    x += KMEANS_MODIFI;
+  }
+
+  return x;
+}
+
 static void cal_center(float* result, float* data, int* indices,
-    int ncenter, int ndata, int cols) {
+    int ncenter, int ndata, int cols, gsl_rng* rng) {
   int i, j, k;
+
   int t = 0;
+  int* nelem = calloc(ncenter, sizeof(int));
   for (i = 0; i < ncenter; i++) {
     int c = 0;
     for (k = 0; k < cols; k++) {
@@ -481,9 +499,38 @@ static void cal_center(float* result, float* data, int* indices,
       result[i * cols + k] /= (float) c;
     }
     t += c;
+    nelem[i] = c;
+  }
+  assert(t == ndata);
+
+  // check if there is cluster with no elements
+  for (i = 0; i < ncenter; i++) {
+    if (nelem[i] == 0) {
+      // find the largest cluster
+      int max = 0;
+      int maxid = 0;
+      for (j = 0; j < ncenter; j++) {
+        if (nelem[j] > max) {
+          max = nelem[j];
+          maxid = j;
+        }
+      }
+
+      assert(max > 0);
+      assert(i != maxid);
+
+      // clone the center with a little translation
+      for (k = 0; k < cols; k++) {
+        result[i * cols + k] = tiny_modify(result[maxid * cols + k], rng);
+      }
+
+      // assign an estimated number of elements
+      nelem[i] = max / 2;
+      nelem[maxid] -= nelem[i];
+    }
   }
 
-  assert(t == ndata);
+  free(nelem);
 }
 
 void kmeans_cluster(gsl_vector** data, size_t size,
@@ -517,11 +564,11 @@ void kmeans_cluster(gsl_vector** data, size_t size,
 
   if (rng) {
     for (i = 0; i < size * cols; i++) {
-      testset[i] *= 1.0 + KMEANS_MODIFI * 2.0 * (gsl_rng_uniform(rng) - .5);
+      testset[i] = tiny_modify(testset[i], rng);
     }
   }
 
-  cal_center(dataset, testset, cid, k, size, cols);
+  cal_center(dataset, testset, cid, k, size, cols, rng);
 
   float dist = 1.0;
   while (dist > .001) {
@@ -532,7 +579,7 @@ void kmeans_cluster(gsl_vector** data, size_t size,
         testset, size, cid, distance, 1, &flann_param);
 
     // calculate new center
-    cal_center(dataset, testset, cid, k, size, cols);
+    cal_center(dataset, testset, cid, k, size, cols, rng);
 
     // dist
     dist = 0.0;
