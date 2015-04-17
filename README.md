@@ -19,14 +19,27 @@ This is a C library for Hidden Markov Model (HMM).
 Build system:
 * CMake
 
+For documentation:
+* Doxygen
+
 ## Build and Install
-Simply do:
+Like all CMake projects, to build and install, simply do:
 ```
   mkdir build
   cd build
   cmake ..
-  make
-  make install
+  make && make install
+```
+
+To make the documentation, do:
+```
+  make doc
+```
+
+## Compile and Link
+The configuration of the library can be found from pkg-config.
+```
+  cc `pkg-config --cflags --libs notghmm` source.c
 ```
 
 ## Support
