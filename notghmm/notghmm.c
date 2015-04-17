@@ -785,56 +785,56 @@ void baum_welch(hmmgmm_t* model, seq_t** data, size_t nos) {
 
             // Calculate cgamma of mixture components
             for (j = 0; j < model->k; j++) {
-              gsl_vector_set(cgamma, j, 
-                  gsl_vector_get(state->weight, j)
-                  * DEBUG_EXP(gaussian_pdf_log(state->comp[j],
-                      data[s]->data[t])));
+              gsl_vector_set(cgamma, j,
+                  DEBUG_LOG(gsl_vector_get(state->weight, j))
+                  + gaussian_pdf_log(state->comp[j], data[s]->data[t]));
             }
 
-            double sum = gsl_blas_dasum(cgamma);
-            assert(isfinite(sum));
-            if (sum > MORE_THAN_ZERO && isfinite(1.0 / sum)) {
-              // Normalize and multiply by gamma
-              gsl_vector_scale(cgamma, 
-                  gsl_vector_get(gamma, i) / sum);
+            double logsum = log_sum_exp(cgamma);
+            assert(isfinite(logsum));
 
-              // Accumulate mixture weight
+            // Normalize and multiply by gamma
+            for (j = 0; j < model->k; j++) {
+              gsl_vector_set(cgamma, j, DEBUG_EXP(gsl_vector_get(cgamma, j) - logsum));
+            }
+            gsl_vector_scale(cgamma, gsl_vector_get(gamma, i));
+
+            // Accumulate mixture weight
+#pragma omp critical
+            {
+              gsl_vector_add(nstate->weight, cgamma);
+            }
+
+            // Accumulate mean and cov
+            for (j = 0; j < model->k; j++) {
+              gsl_vector_memcpy(mean, data[s]->data[t]);
+              gsl_vector_scale(mean, gsl_vector_get(cgamma, j));
 #pragma omp critical
               {
-                gsl_vector_add(nstate->weight, cgamma);
+                gsl_vector_add(nstate->comp[j]->mean, mean);
               }
 
-              // Accumulate mean and cov
-              for (j = 0; j < model->k; j++) {
-                gsl_vector_memcpy(mean, data[s]->data[t]);
+              gsl_vector_memcpy(mean, data[s]->data[t]);
+              gsl_vector_sub(mean, state->comp[j]->mean);
+              if (model->cov_diag) {
+                gsl_vector_mul(mean, mean);
                 gsl_vector_scale(mean, gsl_vector_get(cgamma, j));
 #pragma omp critical
                 {
-                  gsl_vector_add(nstate->comp[j]->mean, mean);
+                  gsl_vector_add(nstate->comp[j]->diag, mean);
                 }
-
-                gsl_vector_memcpy(mean, data[s]->data[t]);
-                gsl_vector_sub(mean, state->comp[j]->mean);
-                if (model->cov_diag) {
-                  gsl_vector_mul(mean, mean);
-                  gsl_vector_scale(mean, gsl_vector_get(cgamma, j));
-#pragma omp critical
-                  {
-                    gsl_vector_add(nstate->comp[j]->diag, mean);
-                  }
-                }
-                else {
-#pragma omp critical
-                  {
-                    gsl_blas_dger(gsl_vector_get(cgamma, j), mean,
-                        mean, nstate->comp[j]->cov);
-                  }
-                }
+              }
+              else {
 #pragma omp critical
                 {
-                  *gsl_matrix_ptr(scgamma, i, j) 
-                    += gsl_vector_get(cgamma, j);
+                  gsl_blas_dger(gsl_vector_get(cgamma, j), mean,
+                      mean, nstate->comp[j]->cov);
                 }
+              }
+#pragma omp critical
+              {
+                *gsl_matrix_ptr(scgamma, i, j) 
+                  += gsl_vector_get(cgamma, j);
               }
             }
           } // end for all states

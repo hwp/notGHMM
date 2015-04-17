@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
   }
 
   if (showhelp || n_states <= 0 || n_comp <= 0 || length <= 0 || nos <= 0) {
-    fprintf(stderr, "Usage: %s -n num_states -k num_components"
+    fprintf(stderr, "Usage: %s -n num_states -k num_components "
         "[-c cov_diag] -l length -s num_seq\n", argv[0]);
     exit(EXIT_SUCCESS);
   }
