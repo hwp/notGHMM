@@ -349,7 +349,7 @@ double hmm_log_likelihood_all(const hmmgmm_t* model, seq_t** data, size_t nos) {
   size_t i;
   double logl = 0.0;
   for (i = 0; i < nos; i++) {
-    gsl_matrix* logalpha = gsl_matrix_alloc(data[i]->size, data[i]->dim);
+    gsl_matrix* logalpha = gsl_matrix_alloc(data[i]->size, model->n);
     forward_proc_log(model, data[i], logalpha);
     logl += hmm_log_likelihood(logalpha);
     gsl_matrix_free(logalpha);
